@@ -1,0 +1,4 @@
+{
+    "animeCompanion.chat.model": "openrouter/auto",
+    "animeCompanion.chat.provider": "openrouter"
+}
