@@ -61,14 +61,20 @@ Bayangkan sebuah markas militer yang diserang penyusup. Sistem keamanan konvensi
     1. **Tier-1 Deterministic In-Memory VFS ($< 2\text{ ms}$):** Setiap `session_id` memiliki *state* direktori kerja (`cwd`), variabel lingkungan (`env`), dan pohon file virtual (`/home/ubuntu`, `/opt/satcom/Akses_Darurat_Satelit_TNI.html`, `/opt/satcom/kredensial_komando.env`, `/opt/scada/radar_cooling.conf`, `/etc/passwd`). Perintah navigasi & baca cepat (`pwd`, `cd`, `ls`, `cat`, `whoami`, `id`, `uname`, `hostname`, `clear`) dijawab instan oleh mesin VFS Python tanpa menunggu LLM, menjamin konsistensi 100% dan ketahanan penuh saat *offline*.
     2. **Tier-2 Context-Aware LLM Engine (`< 800\text{ ms}`):** Perintah eksplorasi sistem lanjutan (`ps aux`, `netstat`, `find`, `ss`, `iptables`, `crontab`) diteruskan ke LLM (Groq / Gemini 2.5 Flash / Ollama lokal `qwen2.5-coder:7b`) dengan menyuntikkan *state* `cwd` dan isi direktori VFS saat ini, dilindungi oleh **Pre-Flight Anti-Jailbreak Filter**.
 
-### FR-03: Operasi Bumerang Ganda (*Dual-Vector Active Honeytoken & CORS-Proof Beacon*)
-* **Penjelasan Sederhana:** Dua lapis umpan "Sangat Rahasia" di dalam ruang jebakan (file portal HTML dan file konfigurasi `.env`) yang otomatis membongkar identitas perangkat serta koordinat lokasi *hacker* baik saat dibuka di browser maupun saat ditembak via terminal.
-* **Spesifikasi Teknis (`honeytoken.py`):**
-  * **Vektor 1 — Dokumen Umpan Browser (`Akses_Darurat_Satelit_TNI.html`):**
-    * Saat diunduh melalui `/api/vfs/download/Akses_Darurat_Satelit_TNI.html`, backend secara dinamis menyuntikkan `session_id` penyerang dan URL server aktif (`request.base_url`) ke dalam file HTML sehingga tetap berfungsi meskipun diuji lintas laptop pada jaringan LAN/Hotspot.
-    * Saat dibuka di komputer penyerang (meskipun dari `file://` yang menghasilkan `Origin: null`), skrip internal mengekstrak **IP Asli via WebRTC STUN Leak**, **GPU Renderer (WebGL)**, **Canvas Hardware Hash**, **OS/CPU Threads**, dan **Koordinat Lokasi**, lalu menembakkan sinyal ke `/api/telemetry/sync` menggunakan *Dual-Transport* (`fetch` dengan `Content-Type: text/plain` bebas *CORS preflight* + *fallback* `Image()` pixel beacon).
-  * **Vektor 2 — Umpan Kredensial CLI (`kredensial_komando.env`):**
-    * Berisi kunci API satelit palsu dan *Canary Endpoint* internal (`/api/v1/satcom/keys?token=HT-SATCOM-9921`). Jika penyerang mengeksekusi `curl` atau mengakses URL tersebut, sistem langsung memicu *alert* Honeytoken ke Command Center.
+### FR-03: Operasi Bumerang Tiga Jalur (*3-Way Chameleon Honeytoken & Anti-Source-Inspection Trap*)
+* **Penjelasan Sederhana:** Umpan "Sangat Rahasia" di dalam ruang jebakan yang dirancang tahan terhadap *hacker* paling curiga sekalipun: baik dibuka dua kali di browser, diintip kode sumbernya (`cat` / `View Source`), maupun diuji lewat terminal (`curl`), *hacker* tetap terkena jebakan pelacak balik.
+* **Spesifikasi Teknis (`honeytoken.py` & `ai_shell.py`):**
+  * **Jalur 1 — Klik 2x di Browser (`Akses_Darurat_Satelit_TNI.html` dengan Obfuscated Webpack Bundle):**
+    * Disamarkan sebagai aplikasi internal *Single-File Offline Diagnostic Console* (`SISHANKAMRATA SATCOM SSO RUNTIME v4.2.1`). Kode ekstraksi **WebRTC STUN IP Leak**, **GPU Renderer (WebGL)**, **Canvas Hardware Hash**, dan **Geolocation** dibungkus dalam blok *minified runtime* ter-obfuscate (`webpackChunk_satcom_diag`) sehingga tampak seperti *library* enkripsi bawaan.
+    * Saat dibuka (meskipun dari `file://` / `Origin: null`), sinyal ditembakkan ke `/api/telemetry/sync` menggunakan *Dual-Transport* (`fetch` dengan `Content-Type: text/plain` bebas *CORS preflight* + *fallback* `Image()` pixel beacon).
+  * **Jalur 2 — Jebakan bagi Hacker yang Mengintip Source Code HTML (*Developer Comment Bait*):**
+    * Jika *hacker* curiga dan memilih membaca *source code* HTML dengan `cat` atau teks editor tanpa membukanya di browser, di bagian atas HTML sengaja ditanam komentar "kelalaian *developer* militer":
+      `<!-- TODO (LetdaTek Aris - Puskomlekad): Hapus endpoint bypass debug ini sebelum deploy produksi: http://<HOST>/api/v1/satcom/keys?ticket=satcom-root-bypass-8821a -->`
+    * *Hacker* yang merasa menemukan celah *hardcoded debug endpoint* akan langsung mengakses URL tersebut via `curl` dari terminal lokalnya dan seketika memicu *alert* Honeytoken!
+  * **Jalur 3 — Jebakan File `kredensial_komando.env` dengan Valid JWT Bearer Token (Tanpa Kata `HT`/`Canary`):**
+    * Haram menggunakan label mencurigakan seperti `HT-` atau `CANARY`. File `.env` berisi `SATCOM_VAULT_URL=http://<HOST>/api/v1/satcom/keys` dan `SATCOM_BEARER_TOKEN=eyJhbGciOiJIUzI1Ni...` yang merupakan **JWT Valid Base64**.
+    * Jika *hacker* men-*decode* JWT tersebut di `jwt.io` atau `base64 -d`, isinya menampilkan klaim JSON produksi yang meyakinkan (`{"iss":"pussiberad-vault","role":"satcom_root","sid":"<session_id>"}`). Saat *hacker* mengetes token tersebut dengan `curl -H "Authorization: Bearer eyJ..."`, server menangkap IP asli terminal laptop penyerang dan memicu `HONEYTOKEN_TRIGGERED`.
+  * **Zero-Click Server-Side Tripwire:** Bahkan saat file baru di-`cat` di Web-SSH atau di-`download`, VFS sudah mencatat *Stage-1 Silent Tripwire* (`MITRE T1552.001`) ke buku bukti SHA-256.
 
 ### FR-04: Analisis Psikologi APT & Pemetaan MITRE ATT&CK Asynchronous
 * **Penjelasan Sederhana:** Mesin intelijen latar belakang yang menganalisis setiap langkah *hacker* tanpa memperlambat terminal, lalu memetakan teknik serangan ke matriks standar militer internasional.

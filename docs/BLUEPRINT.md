@@ -154,14 +154,28 @@ Untuk memastikan sistem tidak memiliki celah saat diuji oleh juri ahli siber TNI
   * Perintah `pwd`, `cd`, `ls`, `cat`, `whoami`, `id`, `uname`, `hostname`, `env`, `help`, `clear` dieksekusi langsung oleh VFS Python dalam **$< 2\text{ ms}$**.
   * Perintah lain divalidasi oleh *Anti-Jailbreak Regex Filter* terlebih dahulu. Jika valid, dikirim ke LLM dengan menyertakan `cwd` dan daftar file VFS agar balasan LLM 100% konsisten.
 
-### 3. Dynamic Host Injection & CORS-Proof Dual-Transport Honeytoken (`honeytoken.py`)
-* **Masalah Lama:** File `.html` yang dibuka dari folder *Downloads* lokal berjalan di `Origin: null` sehingga `fetch()` ke backend sering terkena blokir *CORS Preflight*, atau gagal jika URL backend di-*hardcode* ke `localhost`.
-* **Desain Baru (`honeytoken.py`):**
-  * Saat file diunduh via `GET /api/vfs/download/Akses_Darurat_Satelit_TNI.html?session_id=...`, `honeytoken.py` menyuntikkan URL server aktual (`request.base_url`) dan `session_id` langsung ke dalam skrip HTML sebelum dikirim ke browser penyerang.
-  * Skrip pelacak di dalam HTML mengirimkan data menggunakan **Dual-Transport**:
-    1. `fetch(SYNC_URL, { method: "POST", mode: "cors", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify(payload) })` — Penggunaan `text/plain` menjadikan request ini sebagai *CORS Simple Request* yang **tidak memicu OPTIONS preflight** meskipun berasal dari `Origin: null` (`file://`).
-    2. Fallback `new Image().src = SYNC_URL + "?b=" + encodeURIComponent(btoa(JSON.stringify(payload)))` (`GET /api/telemetry/sync`) untuk jaminan tembus 100% di semua browser.
-  * Di file kedua (`kredensial_komando.env`), terdapat URL Canary `/api/v1/satcom/keys?token=HT-SATCOM-9921` yang jika diakses via `curl` atau terminal Web-SSH akan langsung memicu *alert* Honeytoken kedua.
+### 3. Dynamic Host Injection, Anti-Source-Inspection & 3-Way Chameleon Honeytoken (`honeytoken.py`)
+* **Masalah Lama:**
+  1. File `.html` yang dibuka dari folder *Downloads* lokal berjalan di `Origin: null` sehingga `fetch()` ke backend sering terkena blokir *CORS Preflight*, atau gagal jika URL backend di-*hardcode* ke `localhost`.
+  2. Jika *hacker* curiga dan mengintip *source code* HTML (`cat` / `View Source`) lalu melihat kode `RTCPeerConnection` telanjang, atau melihat kata `token=HT-SATCOM` (*HT = Honeytoken*) di dalam file `.env`, maka penyamaran langsung terbongkar!
+* **Desain Baru — 3 Jalur Jebakan Psikologis & Teknis (`honeytoken.py`):**
+  * **Injeksi Host & Sesi Dinamis:** Saat file diunduh via `GET /api/vfs/download/{filename}?session_token=...`, `honeytoken.py` menyuntikkan URL server aktual (`request.base_url`) dan `session_token` langsung ke dalam file umpan.
+  * **Jalur 1 (Klik 2x di Browser — Kamuflase Bundel Webpack + Dual-Transport CORS-Proof):**
+    * File `Akses_Darurat_Satelit_TNI.html` dirancang menyerupai *Single-File Offline Diagnostic WebGUI* milik Puskomlekad. Skrip pelacak WebRTC STUN Leak & WebGL GPU dibungkus dan di-*obfuscate* dalam blok *minified runtime* (`window.webpackChunk_satcom_diag`) sehingga tampak seperti modul SSO/kriptografi standar.
+    * Pengiriman data ke `/api/telemetry/sync` menggunakan **Dual-Transport**: `fetch()` dengan `Content-Type: text/plain;charset=UTF-8` (*CORS Simple Request* tanpa *OPTIONS preflight* pada `Origin: null`) + *fallback* `new Image().src = SYNC_URL + "?b=" + ...`.
+  * **Jalur 2 (Intip Source Code HTML — Jebakan Komentar Developer Ceroboh / *Developer Comment Bait*):**
+    * Di bagian atas kode HTML yang mudah terlihat saat di-`cat`, ditanam komentar "kelalaian *programmer* militer":
+      ```html
+      <!-- 
+        SISHANKAMRATA SATCOM EMERGENCY CONSOLE v4.2.1
+        TODO (LetdaTek Aris - Puskomlekad): Hapus endpoint bypass debug ini sebelum rilis produksi Kodam!
+        Debug Key Vault API: http://<HOST>/api/v1/satcom/keys?ticket=satcom-root-bypass-8821a
+      -->
+      ```
+    * Jika *hacker* tidak mau membuka file HTML di browser karena curiga, dia justru akan terpancing menembak URL *debug bypass* di komentar tersebut menggunakan `curl` dari terminal lokalnya—yang langsung memicu `HONEYTOKEN_TRIGGERED`!
+  * **Jalur 3 (Baca File `kredensial_komando.env` — Valid JWT Bearer Token Tanpa Label "HT"):**
+    * Haram memakai kata `HT`, `CANARY`, atau `DECOY`. Isi file `.env` menggunakan token berformat **JWT Asli** (`SATCOM_BEARER_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`) yang jika di-*decode* oleh *hacker* di `jwt.io` / `base64 -d` menghasilkan klaim JSON produksi yang valid (`{"iss":"pussiberad-vault","role":"satcom_root","sid":"<session_token>"}`).
+    * Saat *hacker* menguji keaktifan token tersebut via `curl -H "Authorization: Bearer eyJ..." http://<HOST>/api/v1/satcom/keys`, backend mengekstrak `sid` dari JWT, menangkap IP asli terminal penyerang, dan langsung memancarkan `HONEYTOKEN_TRIGGERED` (`vector_type: "CLI_CANARY_API_TRIGGER"`).
 
 ### 4. Asynchronous MITRE ATT&CK Enrichment (`mitre_service.py`)
 * Analisis psikologi APT dan pemetaan teknik MITRE dijalankan di latar belakang (`asyncio.create_task`) sehingga balasan terminal ke penyerang tidak pernah tertahan oleh proses analisis intelijen.
@@ -184,7 +198,7 @@ Untuk memastikan sistem tidak memiliki celah saat diuji oleh juri ahli siber TNI
 | `POST` | `/api/sys/console` | `{session_token, command}` | Mengeksekusi perintah di Hybrid VFS (`< 2ms`) atau LLM Shell, mencatat blok SHA-256, memancarkan `TERMINAL_COMMAND_EXECUTED` + *async* `MITRE_ENRICHMENT_READY` ke WS. |
 | `GET` | `/api/vfs/download/{filename}` | `?session_token=...` | Mengunduh file umpan (`Akses_Darurat_Satelit_TNI.html` atau `kredensial_komando.env`) dengan injeksi URL server & `session_token` dinamis. |
 | `POST` / `GET` | `/api/telemetry/sync` | JSON string (`text/plain`) atau `?b=<base64>` | Endpoint penerima *callback* bumerang dari file HTML umpan. Membongkar IP asli, GPU, OS, dan lokasi penyerang, lalu memancarkan `HONEYTOKEN_TRIGGERED` ke WS. |
-| `GET` | `/api/v1/satcom/keys` | `?token=HT-SATCOM-9921` | Canary endpoint dari file `kredensial_komando.env`. Jika diakses via browser/`curl`, langsung memicu `HONEYTOKEN_TRIGGERED`. |
+| `GET` | `/api/v1/satcom/keys` | Header `Authorization: Bearer <JWT>` atau `?ticket=...` | Canary endpoint dari file `kredensial_komando.env` (Jalur 3) & komentar *debug* HTML (Jalur 2). Jika diakses via browser/`curl`, langsung memicu `HONEYTOKEN_TRIGGERED`. |
 | `POST` | `/api/immunity/broadcast` | `{session_token}` | Menghasilkan aturan *Iptables* & *ModSecurity WAF*, mengubah seluruh 15 titik Kodam menjadi `IMMUNE_PROTECTED`, dan memancarkan `IMMUNITY_BROADCASTED` ke WS. |
 | `POST` | `/api/forensic/tamper-test` | `{block_index}` | Mensimulasikan modifikasi ilegal pada log blok ke-`block_index`, memvalidasi ulang rantai SHA-256, dan memancarkan `FORENSIC_INTEGRITY_ALERT` (`TAMPERED_CRITICAL`) ke WS. |
 | `POST` | `/api/forensic/restore` | `{}` | Memulihkan rantai bukti forensik ke snapshot asli yang sah (`VALID_IMMUTABLE`) dan menyinkronkan ulang WS. |
@@ -233,7 +247,7 @@ Seluruh pesan WebSocket dari `backend/ws.py` ke `frontend/src/lib/websocket.ts` 
     "cwd": "/opt/satcom",
     "prompt": "ubuntu@srv-kodam-logistik-01:/opt/satcom$",
     "raw_input": "cat kredensial_komando.env",
-    "simulated_output": "SATCOM_MASTER_KEY=TNIAD-DEC-99812-X\nSATCOM_API_URL=http://localhost:8000/api/v1/satcom/keys?token=HT-SATCOM-9921\nEMERGENCY_PORTAL_FILE=/opt/satcom/Akses_Darurat_Satelit_TNI.html",
+    "simulated_output": "SATCOM_ENV=production\nSATCOM_VAULT_URL=http://localhost:8000/api/v1/satcom/keys\nSATCOM_BEARER_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJwdXNzaWJlcmFkLXZhdWx0Iiwicm9sZSI6InNhdGNvbV9yb290Iiwic2lkIjoic2VzLWtkbTAzLTk5NDFhIn0.7x9K2mP1qL\nEMERGENCY_PORTAL_FILE=/opt/satcom/Akses_Darurat_Satelit_TNI.html",
     "execution_source": "VFS_DETERMINISTIC_ENGINE",
     "response_time_ms": 1.4
   },
