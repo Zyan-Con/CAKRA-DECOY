@@ -12,18 +12,9 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      # Runner join tailnet pakai ephemeral key (bukan self-hosted runner —
-      # repo publik, self-hosted runner itu berisiko).
-      - name: Connect Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
-          # tags harus cocok dgn ACL tailnet, mis. tag:ci
-          tags: tag:ci
-
-      - name: Deploy over SSH (tailnet)
+      - name: Deploy over SSH
         env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }} # 100.93.61.70 (IP tailnet)
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
