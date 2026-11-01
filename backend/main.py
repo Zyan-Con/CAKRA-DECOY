@@ -13,6 +13,7 @@ forensic_chain, pdf_service) nanti didaftarkan router-nya di sini.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from contextlib import asynccontextmanager
@@ -26,6 +27,7 @@ from pydantic import BaseModel
 import ai_shell
 import decoy
 import detector
+import mitre_service
 import ws
 from schemas import (
     EventType,
@@ -89,6 +91,20 @@ class ConsoleReq(BaseModel):
 
 # ---------------- Endpoint inti ----------------
 
+
+async def _emit_mitre(session_id: str, **signal) -> None:
+    """Analisis MITRE + broadcast. Dipanggil via create_task biar non-blocking."""
+    enrich = mitre_service.profiler.analyze(session_id, **signal)
+    await ws.manager.broadcast(
+        make_event(
+            EventType.MITRE_ENRICHMENT_READY,
+            enrich,
+            session_id=session_id,
+            seq=ws.manager.next_seq(),
+        )
+    )
+
+
 # Respon login SELALU identik (opaque): penyerang tidak tahu dia dibelokkan.
 _OPAQUE_LOGIN_RESPONSE = {
     "status": "AUTHENTICATED",
@@ -126,6 +142,7 @@ async def login(req: LoginReq, request: Request) -> dict:
                 seq=ws.manager.next_seq(),
             )
         )
+        asyncio.create_task(_emit_mitre(token, vector=result.entry_vector))
     # Prajurit sah maupun penyerang menerima respon + token yang sama bentuknya.
     return {**_OPAQUE_LOGIN_RESPONSE, "session_token": token}
 
@@ -149,6 +166,7 @@ async def ot_control(req: OTControlReq) -> dict:
             seq=ws.manager.next_seq(),
         )
     )
+    asyncio.create_task(_emit_mitre(req.session_token, ot_action=req.action))
     # Penyerang cuma lihat ilusi overheat; sistem asli tetap aman.
     return {
         "status": "COMMAND_EXECUTED",
@@ -180,6 +198,7 @@ async def sys_console(req: ConsoleReq) -> dict:
             seq=ws.manager.next_seq(),
         )
     )
+    asyncio.create_task(_emit_mitre(req.session_token, command=req.command))
     return {
         "output": result.output,
         "cwd": result.cwd,
