@@ -24,13 +24,15 @@ services:
       - caddy_data:/data
     restart: unless-stopped
 
-  # Aktifkan saat FE teammate sudah scaffold Next.js (butuh output standalone).
-  # Lalu uncomment handle frontend di Caddyfile.
-  # frontend:
-  #   build: ./frontend
-  #   expose:
-  #     - "3000"
-  #   restart: unless-stopped
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_BACKEND_URL: https://cakra.polije.app
+        NEXT_PUBLIC_BACKEND_WS_URL: wss://cakra.polije.app/ws/command-stream
+    expose:
+      - "3000"
+    restart: unless-stopped
 
 volumes:
   caddy_data:
