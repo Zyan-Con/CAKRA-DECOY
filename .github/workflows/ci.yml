@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Module self-checks
+        run: |
+          python decoy.py
+          python detector.py
+          python ai_shell.py
+          python mitre_service.py
+      - name: Integration tests
+        env:
+          PYTHONPATH: .
+        run: python -m pytest tests/ -q

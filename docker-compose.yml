@@ -1,0 +1,36 @@
+# CAKRA-DECOY 2.0 — full-stack. Deploy: docker compose up -d --build
+# caddy diikat ke 127.0.0.1 supaya hanya cloudflared (lokal) yang bisa akses,
+# tidak terbuka langsung ke internet.
+services:
+  backend:
+    build: ./backend
+    environment:
+      - DEMO_EMITTER=1 # pancarkan stream demo biar FE/juri lihat data
+    env_file:
+      - path: ./backend/.env # API key dll; opsional, dibuat sekali di server
+        required: false
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:8080" # cloudflared tunnel -> http://localhost:8080
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    restart: unless-stopped
+
+  # Aktifkan saat FE teammate sudah scaffold Next.js (butuh output standalone).
+  # Lalu uncomment handle frontend di Caddyfile.
+  # frontend:
+  #   build: ./frontend
+  #   expose:
+  #     - "3000"
+  #   restart: unless-stopped
+
+volumes:
+  caddy_data:

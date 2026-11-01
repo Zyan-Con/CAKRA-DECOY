@@ -1,0 +1,40 @@
+name: deploy
+
+# Jalan setelah workflow "ci" selesai di branch main DAN lolos.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      # Runner join tailnet pakai ephemeral key (bukan self-hosted runner —
+      # repo publik, self-hosted runner itu berisiko).
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          # tags harus cocok dgn ACL tailnet, mis. tag:ci
+          tags: tag:ci
+
+      - name: Deploy over SSH (tailnet)
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }} # 100.93.61.70 (IP tailnet)
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+            ubuntu@"$SERVER_HOST" '
+              set -euo pipefail
+              cd ~/CAKRA-DECOY
+              git pull --ff-only
+              docker compose up -d --build
+              docker image prune -f
+              sleep 5
+              curl -fsS http://127.0.0.1:8080/health
+            '
