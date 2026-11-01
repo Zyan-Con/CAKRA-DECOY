@@ -1,8 +1,8 @@
 # Deploy — CAKRA-DECOY 2.0 (full-stack di Oracle server)
 
-Auto-deploy: push ke `main` → CI jalan (test) → kalau lolos, `deploy` SSH ke server
-lewat Tailscale, `git pull` + `docker compose up -d --build`. URL publik:
-**https://cakra.polije.app** (Cloudflare Tunnel → host `127.0.0.1:8181`).
+Auto-deploy: push ke `main` → CI jalan (test) → kalau lolos, `deploy` SSH langsung ke
+server (`168.110.215.86`), `git pull` + `docker compose up -d --build`. **Sudah aktif.**
+URL publik (perlu tunnel): **https://cakra.polije.app** (Cloudflare Tunnel → `127.0.0.1:8181`).
 
 Arsitektur: `cloudflared → 127.0.0.1:8181 → caddy:8080 → backend:8000` (+ frontend:3000 nanti).
 caddy diikat ke `127.0.0.1` jadi hanya cloudflared yang bisa akses; tidak terbuka
@@ -43,30 +43,20 @@ Pakai pola yang sama dgn tunnel lain di server (token + systemd):
 > trigger demo spesifik, jadi aman untuk dinilai. Tambahkan banner "DEMO —
 > data simulasi" di FE.
 
-### 3. GitHub Secrets (Settings → Secrets and variables → Actions)
+### 3. GitHub Secrets — SUDAH DI-SET
 
 | Secret | Isi |
 |---|---|
-| `SERVER_HOST` | `100.93.61.70` (IP tailnet server) |
-| `SSH_KEY` | private key SSH; pubkey-nya masuk `~/.ssh/authorized_keys` server |
-| `TS_AUTHKEY` | Tailscale **ephemeral** auth key (Admin → Settings → Keys) |
+| `SERVER_HOST` | `168.110.215.86` (public IP server) |
+| `SSH_KEY` | private key CI; pubkey `cakra-ci-deploy` sudah di `~/.ssh/authorized_keys` server |
 
-Bikin keypair SSH khusus CI:
+Deploy pakai SSH langsung (server punya public IP, port 22 kebuka). Tailscale tidak dipakai.
+Kalau perlu rotate key CI:
 ```bash
-ssh-keygen -t ed25519 -f cakra_ci -N ""
-# cakra_ci.pub -> tambahkan ke ~/.ssh/authorized_keys di server
-# isi cakra_ci (private) -> GitHub secret SSH_KEY
+ssh-keygen -t ed25519 -f cakra_ci -N "" -C "cakra-ci-deploy"
+# cakra_ci.pub -> ganti baris cakra-ci-deploy di ~/.ssh/authorized_keys server
+gh secret set SSH_KEY < cakra_ci && rm cakra_ci cakra_ci.pub
 ```
-
-### 4. Tailscale ACL
-
-Izinkan node CI (tag `tag:ci`) SSH ke server:
-```jsonc
-"acls": [
-  { "action": "accept", "src": ["tag:ci"], "dst": ["100.93.61.70:22"] }
-]
-```
-Pastikan `tag:ci` terdaftar di `tagOwners`, dan ephemeral key boleh pakai tag itu.
 
 ---
 
