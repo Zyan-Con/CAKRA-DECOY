@@ -9,7 +9,12 @@ venv/
 
 # Env & secrets (JANGAN commit .env — isinya API key)
 .env
+*.env.local
 backend/.env
+frontend/.env.local
+
+# Generated artifacts & demo PDFs
+*.pdf
 
 # Node / Next.js
 node_modules/

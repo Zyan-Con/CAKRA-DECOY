@@ -52,6 +52,8 @@ export interface ConsoleResponse {
   output: string;
   cwd: string;
   prompt: string;
+  command_id?: string;
+  execution_source?: string;
 }
 
 export interface OtControlResponse {
@@ -62,7 +64,13 @@ export interface OtControlResponse {
 
 export interface ImmunityResponse {
   status: string;
-  immune_count: number;
+  nodes_updated?: number;
+  immune_count?: number;
+  rule?: {
+    rule_id: string;
+    iptables_cmd: string;
+    modsec_rule: string;
+  };
 }
 
 export const api = {
@@ -111,4 +119,7 @@ export const api = {
 
   exportPdfUrl: (sessionToken?: string) =>
     `${BASE_URL}/api/forensic/export-pdf?session_token=${sessionToken ?? ""}`,
+
+  honeytokenDownloadUrl: (filename: string, sessionToken?: string) =>
+    `${BASE_URL}/api/vfs/download/${filename}?session_token=${sessionToken ?? ""}`,
 };

@@ -16,11 +16,16 @@ Executes 6 Stage Automated or Interactive Live Attack Scenarios:
 import argparse
 import base64
 import json
+import os
 import sys
 import time
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional, Tuple
+
+backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
 
 
 class TacticalColors:
@@ -218,7 +223,7 @@ def run_stage_6_vaccine_and_pdf(base_url: str, session_token: str):
 
 def main():
     parser = argparse.ArgumentParser(description="CAKRA-DECOY 2.0 Live Red Team & Demo Automation Suite")
-    parser.add_argument("--url", default="http://127.0.0.1:8000", help="Backend base URL")
+    parser.add_argument("--url", default="http://127.0.0.1:8001", help="Backend base URL")
     parser.add_argument("--auto", action="store_true", help="Run all 6 stages sequentially without prompts")
     parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5, 6], help="Run a specific stage only")
     args = parser.parse_args()
