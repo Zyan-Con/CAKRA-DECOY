@@ -25,6 +25,8 @@ jobs:
               cd ~/CAKRA-DECOY
               git pull --ff-only
               docker compose up -d --build
+              # caddy bind-mount file tunggal: recreate biar Caddyfile baru kebaca (inode replace)
+              docker compose up -d --force-recreate caddy
               docker image prune -f
               sleep 5
               curl -fsS http://127.0.0.1:8181/health
