@@ -23,10 +23,11 @@ def generate_military_dfir_pdf(
     session_id = session.get("session_id", "SES-KDM03-9941A")
     threat_score = session.get("threat_score", 96)
     routing_mode = session.get("routing_mode", "DECOY_MIRROR_TWIN")
-    actor_class = session.get("attacker_profile", {}).get("actor_classification", "STATE-SPONSORED APT")
-    primary_intent = session.get("attacker_profile", {}).get(
-        "primary_intent", "OT_RADAR_SABOTAGE_AND_SATCOM_EXFILTRATION"
-    )
+    attacker_prof = session.get("attacker_profile") or {}
+    actor_class = attacker_prof.get("actor_classification", "STATE-SPONSORED APT")
+    if hasattr(actor_class, "value"):
+        actor_class = actor_class.value
+    primary_intent = attacker_prof.get("primary_intent", "OT_RADAR_SABOTAGE_AND_SATCOM_EXFILTRATION")
 
     telemetry = telemetry_data or {}
     apparent_ip = telemetry.get("apparent_proxy_ip", "185.220.101.44 (Tor/Relay Proxy)")
