@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+import decoy
 from schemas import (
     ActorClass,
     AttackerProfile,
@@ -114,9 +115,9 @@ _DEMO_SESSION = "ses-kdm03-9941a"
 
 
 def build_snapshot() -> StateSnapshot:
-    """Snapshot awal. Nanti diisi dari state asli (sesi, ledger, dll)."""
-    sessions: list[SessionState] = []
-    if os.getenv("DEMO_EMITTER", "0") == "1":
+    """Snapshot awal: sesi real dari store. Kalau kosong & mode demo, pakai 1 sesi contoh."""
+    sessions: list[SessionState] = list(decoy.store.all_active())
+    if not sessions and os.getenv("DEMO_EMITTER", "0") == "1":
         sessions.append(
             SessionState(
                 session_id=_DEMO_SESSION,
