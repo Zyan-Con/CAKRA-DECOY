@@ -26,6 +26,7 @@ from schemas import (
     DeviceFingerprint,
     EventType,
     ExecutionSource,
+    ForensicBlock,
     ForensicIntegrityAlert,
     GeneratedRule,
     GeoLocation,
@@ -131,7 +132,19 @@ def build_snapshot() -> StateSnapshot:
                 apparent_ip="185.220.101.44",
             )
         )
-    return StateSnapshot(kodam_nodes=DEFAULT_KODAM, sessions=sessions)
+    import forensic_chain
+
+    blocks = [
+        ForensicBlock(
+            block_index=b["block_index"],
+            timestamp=b["timestamp"],
+            action_summary=b["action_summary"],
+            previous_hash=b["previous_hash"],
+            current_hash=b["current_hash"],
+        )
+        for b in forensic_chain.forensic_ledger.get_all_blocks()
+    ]
+    return StateSnapshot(kodam_nodes=DEFAULT_KODAM, sessions=sessions, forensic_ledger=blocks)
 
 
 @router.websocket("/ws/command-stream")
