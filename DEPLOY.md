@@ -1,8 +1,9 @@
 # Deploy — CAKRA-DECOY 2.0 (full-stack di Oracle server)
 
 Auto-deploy: push ke `main` → CI jalan (test) → kalau lolos, `deploy` SSH langsung ke
-server (`168.110.215.86`), `git pull` + `docker compose up -d --build`. **Sudah aktif.**
-URL publik (perlu tunnel): **https://cakra.polije.app** (Cloudflare Tunnel → `127.0.0.1:8181`).
+server (host di GitHub secret `SERVER_HOST`), `git pull` + `docker compose up -d --build`.
+**Sudah aktif.** URL publik (perlu tunnel): **https://cakra.polije.app**
+(Cloudflare Tunnel → `127.0.0.1:8181`).
 
 Arsitektur: `cloudflared → 127.0.0.1:8181 → caddy:8080 → backend:8000` (+ frontend:3000 nanti).
 caddy diikat ke `127.0.0.1` jadi hanya cloudflared yang bisa akses; tidak terbuka
@@ -47,7 +48,7 @@ Pakai pola yang sama dgn tunnel lain di server (token + systemd):
 
 | Secret | Isi |
 |---|---|
-| `SERVER_HOST` | `168.110.215.86` (public IP server) |
+| `SERVER_HOST` | public IP server (jangan tulis di doc publik) |
 | `SSH_KEY` | private key CI; pubkey `cakra-ci-deploy` sudah di `~/.ssh/authorized_keys` server |
 
 Deploy pakai SSH langsung (server punya public IP, port 22 kebuka). Tailscale tidak dipakai.
