@@ -2,9 +2,9 @@
 
 Auto-deploy: push ke `main` → CI jalan (test) → kalau lolos, `deploy` SSH ke server
 lewat Tailscale, `git pull` + `docker compose up -d --build`. URL publik:
-**https://cakra.polije.app** (lewat Cloudflare Tunnel → caddy :8080).
+**https://cakra.polije.app** (Cloudflare Tunnel → host `127.0.0.1:8181`).
 
-Arsitektur: `cloudflared → caddy:8080 → backend:8000` (+ frontend:3000 nanti).
+Arsitektur: `cloudflared → 127.0.0.1:8181 → caddy:8080 → backend:8000` (+ frontend:3000 nanti).
 caddy diikat ke `127.0.0.1` jadi hanya cloudflared yang bisa akses; tidak terbuka
 langsung ke internet.
 
@@ -25,7 +25,7 @@ Test manual:
 ```bash
 cd ~/CAKRA-DECOY
 docker compose up -d --build
-curl -fsS http://127.0.0.1:8080/health   # harus {"status":"ok"...}
+curl -fsS http://127.0.0.1:8181/health   # harus {"status":"ok"...}
 ```
 
 ### 2. Cloudflare Tunnel (dashboard Zero Trust)
@@ -36,7 +36,7 @@ Pakai pola yang sama dgn tunnel lain di server (token + systemd):
    yang ditampilkan dashboard (bikin systemd unit sendiri).
 3. Tab **Public Hostname** → Add:
    - Subdomain `cakra`, domain `polije.app`
-   - Service: `HTTP` → `localhost:8080`
+   - Service: `HTTP` → `localhost:8181`
 4. Simpan. `https://cakra.polije.app` langsung hidup.
 
 > Tanpa login gate (juri tinggal buka). Endpoint honeytoken hanya nembak saat

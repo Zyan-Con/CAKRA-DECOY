@@ -36,5 +36,5 @@ jobs:
               docker compose up -d --build
               docker image prune -f
               sleep 5
-              curl -fsS http://127.0.0.1:8080/health
+              curl -fsS http://127.0.0.1:8181/health
             '
