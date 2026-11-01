@@ -23,6 +23,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import ai_shell
 import decoy
 import detector
 import ws
@@ -31,6 +32,7 @@ from schemas import (
     InterceptionAlert,
     OTSabotageAttempt,
     RoutingMode,
+    TerminalCommandExecuted,
     make_event,
 )
 
@@ -78,6 +80,11 @@ class OTControlReq(BaseModel):
     session_token: str
     action: str
     target_system: str
+
+
+class ConsoleReq(BaseModel):
+    session_token: str
+    command: str
 
 
 # ---------------- Endpoint inti ----------------
@@ -147,4 +154,34 @@ async def ot_control(req: OTControlReq) -> dict:
         "status": "COMMAND_EXECUTED",
         "radar_cooling_temp_c": illusion["decoy_radar_temp_c"],
         "cooling_status": illusion["decoy_cooling_status"],
+    }
+
+
+@app.post("/api/sys/console")
+async def sys_console(req: ConsoleReq) -> dict:
+    s = decoy.store.get(req.session_token)
+    cwd = s.cwd if s is not None else ai_shell.DEFAULT_CWD
+    result = ai_shell.run(req.command, cwd)
+    if s is not None:
+        decoy.store.update_cwd(req.session_token, result.cwd)
+    await ws.manager.broadcast(
+        make_event(
+            EventType.TERMINAL_COMMAND_EXECUTED,
+            TerminalCommandExecuted(
+                command_id=f"cmd-{uuid4().hex[:6]}",
+                cwd=result.cwd,
+                prompt=ai_shell.prompt_for(result.cwd),
+                raw_input=req.command,
+                simulated_output=result.output,
+                execution_source=result.execution_source,
+                response_time_ms=result.response_time_ms,
+            ),
+            session_id=req.session_token,
+            seq=ws.manager.next_seq(),
+        )
+    )
+    return {
+        "output": result.output,
+        "cwd": result.cwd,
+        "prompt": ai_shell.prompt_for(result.cwd),
     }
