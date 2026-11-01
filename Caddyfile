@@ -8,14 +8,8 @@
 		reverse_proxy backend:8000
 	}
 
-	# Root & path lain -> frontend. Aktifkan baris ini saat service frontend sudah jalan:
-	# handle {
-	#	reverse_proxy frontend:3000
-	# }
-
-	# Holding page sampai frontend ada. Hapus blok ini saat FE siap.
+	# Root & path lain -> frontend Next.js.
 	handle {
-		header Content-Type "text/html; charset=utf-8"
-		respond `<!doctype html><meta charset=utf-8><title>CAKRA-DECOY</title><body style="font-family:monospace;background:#0a0e13;color:#34d399;padding:3rem"><h1>CAKRA-DECOY 2.0 — backend aktif</h1><p>Frontend menyusul. API siap:</p><ul><li><a style="color:#fbbf24" href="/docs">/docs</a> — Swagger UI</li><li><a style="color:#fbbf24" href="/health">/health</a></li><li>WebSocket: <code>/ws/command-stream</code></li></ul></body>` 200
+		reverse_proxy frontend:3000
 	}
 }
