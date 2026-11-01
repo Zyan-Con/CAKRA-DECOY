@@ -20,7 +20,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 class TacticalColors:
