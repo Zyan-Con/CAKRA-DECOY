@@ -20,7 +20,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* keep statusText */
     }
-    throw new ApiError(`Backend ${res.status} pada ${path} — ${detail}`);
+    throw new ApiError(`Backend ${res.status} pada ${path} · ${detail}`);
   }
   const text = await res.text();
   if (!text) return undefined as T;

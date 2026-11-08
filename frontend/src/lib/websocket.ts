@@ -43,7 +43,7 @@ export function useTacticalStream(onEvent: (env: TacticalEnvelope) => void) {
           const env = JSON.parse(message.data) as TacticalEnvelope;
           handlerRef.current(env);
         } catch {
-          // abaikan payload yang tidak valid — jangan crash stream
+          // abaikan payload yang tidak valid · jangan crash stream
         }
       };
 

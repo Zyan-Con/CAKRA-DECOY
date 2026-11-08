@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, RefreshCw, ShieldCheck, ShieldX } from "lucide-react";
+import { Icon } from "@/lib/icon";
 import type { ForensicBlock } from "@/lib/types";
 
 interface ForensicTableProps {
@@ -11,16 +11,7 @@ interface ForensicTableProps {
   onExportPdf: () => void;
 }
 
-function shortHash(hash: string) {
-  return hash.slice(0, 16);
-}
-
-export default function ForensicTable({
-  blocks,
-  onTamper,
-  onRestore,
-  onExportPdf,
-}: ForensicTableProps) {
+export default function ForensicTable({ blocks, onTamper, onRestore, onExportPdf }: ForensicTableProps) {
   const [busy, setBusy] = useState(false);
   const tampered = blocks.some((b) => b.chain_integrity === "TAMPERED_CRITICAL");
 
@@ -34,43 +25,51 @@ export default function ForensicTable({
   };
 
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 lg:col-span-1">
+    <section className="card flex h-full flex-col p-5">
       <header className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-widest text-slate-200">
-          <ShieldCheck className="h-4 w-4 text-emerald-400" />
-          Forensic Ledger
-        </h2>
+        <div>
+          <span className="eyebrow">Bukti Hukum</span>
+          <h2 className="text-sm font-semibold text-ink">Forensic Ledger</h2>
+        </div>
         <span
-          className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${
-            tampered
-              ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
-              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider ${
+            tampered ? "border-danger/25 bg-danger-weak text-danger" : "border-accent-line bg-accent-weak text-accent-deep"
           }`}
         >
-          {tampered ? "TAMPERED_CRITICAL" : "VALID_IMMUTABLE"}
+          <Icon name={tampered ? "seal-warning" : "seal-check"} className="h-3 w-3" />
+          {tampered ? "TAMPERED" : "VALID"}
         </span>
       </header>
 
-      <div className="max-h-64 overflow-auto rounded border border-slate-800">
-        <table className="w-full font-mono text-[10px]">
-          <thead className="sticky top-0 bg-slate-900">
-            <tr className="text-left text-slate-500">
-              <th className="px-2 py-2">BLK</th>
-              <th className="px-2 py-2">ACTION</th>
-              <th className="px-2 py-2">HASH</th>
+      <div className="flex-1 overflow-auto rounded-xl border border-border">
+        <table className="w-full border-collapse font-mono text-[10px]">
+          <thead className="sticky top-0 z-10 bg-surface-2 text-ink-mute">
+            <tr className="text-left">
+              <th className="px-3 py-2 font-medium tracking-wider">#</th>
+              <th className="px-3 py-2 font-medium tracking-wider">ACTION</th>
+              <th className="px-3 py-2 font-medium tracking-wider">SHA-256</th>
             </tr>
           </thead>
           <tbody>
-            {blocks.map((b) => (
-              <tr
-                key={b.block_index}
-                className="border-t border-slate-800 text-slate-300"
-              >
-                <td className="px-2 py-2">{b.block_index}</td>
-                <td className="px-2 py-2 text-slate-400">{b.action_summary}</td>
-                <td className="px-2 py-2 text-slate-500">{shortHash(b.current_hash)}…</td>
+            {blocks.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3 py-4 text-ink-mute">
+                  Ledger kosong. Menunggu kejadian.
+                </td>
               </tr>
-            ))}
+            )}
+            {blocks.map((b) => {
+              const bad = b.chain_integrity === "TAMPERED_CRITICAL";
+              return (
+                <tr key={b.block_index} className={`border-t border-border ${bad ? "bg-danger-weak" : ""}`}>
+                  <td className={`px-3 py-2 ${bad ? "text-danger" : "text-ink-mute"}`}>{b.block_index}</td>
+                  <td className={`px-3 py-2 ${bad ? "text-danger" : "text-ink-soft"}`}>{b.action_summary}</td>
+                  <td className="px-3 py-2">
+                    <span className={bad ? "text-danger" : "text-ink-mute"}>{b.current_hash.slice(0, 14)}…</span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -79,27 +78,27 @@ export default function ForensicTable({
         <button
           onClick={() => run(onTamper)}
           disabled={busy}
-          className="flex items-center justify-center gap-1.5 rounded border border-rose-500/40 bg-rose-500/10 px-2 py-2 font-mono text-[10px] uppercase tracking-wider text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-danger/30 bg-danger-weak px-2 py-2 font-mono text-[10px] uppercase tracking-wider text-danger transition-colors hover:border-danger/50 disabled:opacity-50"
         >
-          <ShieldX className="h-3 w-3" />
+          <Icon name="warning-octagon" className="h-3.5 w-3.5" />
           Tamper-Test
         </button>
         <button
           onClick={() => run(onRestore)}
           disabled={busy}
-          className="flex items-center justify-center gap-1.5 rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-2 font-mono text-[10px] uppercase tracking-wider text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent-line bg-accent-weak px-2 py-2 font-mono text-[10px] uppercase tracking-wider text-accent-deep transition-colors hover:border-accent disabled:opacity-50"
         >
-          <RefreshCw className="h-3 w-3" />
+          <Icon name="seal-check" className="h-3.5 w-3.5" />
           Restore
         </button>
       </div>
       <button
         onClick={onExportPdf}
         disabled={busy}
-        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-sky-500/40 bg-sky-500/10 px-2 py-2 font-mono text-[10px] uppercase tracking-wider text-sky-300 transition hover:bg-sky-500/20 disabled:opacity-50"
+        className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-ink px-2 py-2.5 font-mono text-[10px] uppercase tracking-wider text-white transition-colors hover:bg-ink-soft disabled:opacity-50"
       >
-        <Download className="h-3 w-3" />
-        Export DFIR PDF
+        <Icon name="download-simple" className="h-3.5 w-3.5" />
+        Export Laporan DFIR (PDF)
       </button>
     </section>
   );

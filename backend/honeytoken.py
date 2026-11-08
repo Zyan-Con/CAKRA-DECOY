@@ -451,9 +451,9 @@ def process_beacon_payload(raw_body_or_data: Any, client_ip: str) -> Dict[str, A
         geo = {
             "lat": -6.2146,
             "lng": 106.8451,
-            "city": "Jakarta Selatan (Simulated APT Relay Node)",
+            "city": "Jakarta (geolokasi IP, tingkat kota)",
             "country": "ID",
-            "accuracy_radius_m": 150,
+            "accuracy_radius_m": 25000,  # akurasi IP = tingkat kota (puluhan km), bukan GPS
         }
     else:
         geo = {
@@ -461,7 +461,7 @@ def process_beacon_payload(raw_body_or_data: Any, client_ip: str) -> Dict[str, A
             "lng": geo_data.get("lng", 106.8451),
             "city": "Geolocated Host IP Node",
             "country": "ID",
-            "accuracy_radius_m": geo_data.get("accuracy", 100),
+            "accuracy_radius_m": geo_data.get("accuracy", 25000),
         }
 
     return {
@@ -513,9 +513,9 @@ def verify_canary_token(
                 "geo_location": {
                     "lat": -6.2146,
                     "lng": 106.8451,
-                    "city": "Jakarta Selatan (CLI Direct Host Probe)",
+                    "city": "Jakarta (geolokasi IP, tingkat kota)",
                     "country": "ID",
-                    "accuracy_radius_m": 80,
+                    "accuracy_radius_m": 22000,
                 },
                 "device_fingerprint": {
                     "os": "Linux CLI Environment (cURL / Python-requests / Wget)",
@@ -543,9 +543,9 @@ def verify_canary_token(
             "geo_location": {
                 "lat": -6.2146,
                 "lng": 106.8451,
-                "city": "Jakarta Selatan (Developer Comment Bait Trigger)",
+                "city": "Jakarta (geolokasi IP, tingkat kota)",
                 "country": "ID",
-                "accuracy_radius_m": 120,
+                "accuracy_radius_m": 24000,
             },
             "device_fingerprint": {
                 "os": "Inspected Source Code Host via CLI/Browser",

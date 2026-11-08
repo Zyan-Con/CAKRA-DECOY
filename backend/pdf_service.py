@@ -8,6 +8,8 @@ def generate_military_dfir_pdf(
     session_data: Optional[Dict[str, Any]] = None,
     telemetry_data: Optional[Dict[str, Any]] = None,
     ledger_blocks: Optional[List[Dict[str, Any]]] = None,
+    chain_status: str = "VALID_IMMUTABLE",
+    tampered_block_index: Optional[int] = None,
 ) -> bytes:
     """
     Generates an authentic, high-impact tactical Military Incident Report in PDF format.
@@ -28,6 +30,8 @@ def generate_military_dfir_pdf(
     if hasattr(actor_class, "value"):
         actor_class = actor_class.value
     primary_intent = attacker_prof.get("primary_intent", "OT_RADAR_SABOTAGE_AND_SATCOM_EXFILTRATION")
+    confidence_pct = attacker_prof.get("confidence_pct", 92)
+    chain_is_valid = chain_status == "VALID_IMMUTABLE"
 
     telemetry = telemetry_data or {}
     apparent_ip = telemetry.get("apparent_proxy_ip", "185.220.101.44 (Tor/Relay Proxy)")
@@ -155,7 +159,7 @@ def generate_military_dfir_pdf(
     # Table for Attacker Info
     y_start = 308
     intel_rows = [
-        ("Klasifikasi Ancaman", f"{actor_class} (Tingkat Keyakinan: 94%)", c_red),
+        ("Klasifikasi Ancaman", f"{actor_class} (Tingkat Keyakinan: {confidence_pct}%)", c_red),
         ("Skor Ancaman / Severity", f"{threat_score} / 100 — CRITICAL LEVEL 4 RESTRICTED", c_red),
         ("IP Samaran (Proxy/Tor)", apparent_ip, c_black),
         ("IP Fisik Asli (Leaked)", f"{real_ip} (TEREKSTRAK VIA WEBRTC STUN)", c_red),
@@ -248,9 +252,16 @@ def generate_military_dfir_pdf(
     page2.insert_text(pymupdf.Point(50, y_start2 + 14), "5. BUKTI HUKUM BERANTAI SHA-256 (IMMUTABLE FORENSIC LEDGER)", fontsize=10, color=c_white, fontname="helv")
     y_start2 += 25
 
-    # Ledger Verification Badge
-    page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 35), color=c_green, fill=(0.92, 0.99, 0.94), width=1)
-    page2.insert_text(pymupdf.Point(50, y_start2 + 15), "STATUS KEABSAHAN HUKUM : VALID_IMMUTABLE (SEMPURNA)", fontsize=9, color=c_green, fontname="helv")
+    # Ledger Verification Badge — cerminkan status rantai nyata
+    badge_color = c_green if chain_is_valid else c_red
+    badge_fill = (0.92, 0.99, 0.94) if chain_is_valid else (0.99, 0.92, 0.92)
+    badge_text = (
+        "STATUS KEABSAHAN HUKUM : VALID_IMMUTABLE (SEMPURNA)"
+        if chain_is_valid
+        else f"STATUS KEABSAHAN HUKUM : TAMPERED_CRITICAL (ANOMALI PADA BLOK #{tampered_block_index})"
+    )
+    page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 35), color=badge_color, fill=badge_fill, width=1)
+    page2.insert_text(pymupdf.Point(50, y_start2 + 15), badge_text, fontsize=9, color=badge_color, fontname="helv")
     page2.insert_text(pymupdf.Point(50, y_start2 + 27), "Formula Verifikasi Segel: SHA256(BlockIndex || Timestamp || SessionID || ActionSummary || PrevHash)", fontsize=7.5, color=c_black, fontname="courier")
     y_start2 += 45
 
@@ -261,10 +272,17 @@ def generate_military_dfir_pdf(
         summary = blk.get("action_summary", "Aktivitas Terekam")
         cur_hash = blk.get("current_hash", "0" * 64)
 
-        page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 38), color=c_gray, fill=c_light_bg, width=0.5)
-        page2.insert_text(pymupdf.Point(48, y_start2 + 13), f"BLOK #{idx} [{ts} UTC] — {summary}", fontsize=8, color=c_dark_navy, fontname="helv")
+        blk_tampered = tampered_block_index is not None and idx == tampered_block_index
+        row_fill = (0.99, 0.92, 0.92) if blk_tampered else c_light_bg
+        page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 38), color=c_gray, fill=row_fill, width=0.5)
+        page2.insert_text(pymupdf.Point(48, y_start2 + 13), f"BLOK #{idx} [{ts} UTC] - {summary}", fontsize=8, color=c_dark_navy, fontname="helv")
         page2.insert_text(pymupdf.Point(48, y_start2 + 25), f"HASH SHA-256: {cur_hash}", fontsize=7, color=c_black, fontname="courier")
-        page2.insert_text(pymupdf.Point(48, y_start2 + 34), "STATUS INTEGRITAS: [✓ VALID & TERSEGEL]", fontsize=7, color=c_green, fontname="helv")
+        blk_status = (
+            "STATUS INTEGRITAS: [X TAMPERED - SEGEL RUSAK]"
+            if blk_tampered
+            else "STATUS INTEGRITAS: [VALID & TERSEGEL]"
+        )
+        page2.insert_text(pymupdf.Point(48, y_start2 + 34), blk_status, fontsize=7, color=(c_red if blk_tampered else c_green), fontname="helv")
         y_start2 += 42
 
     # Section 6: Tactical Herd-Immunity Vaccine Deployed

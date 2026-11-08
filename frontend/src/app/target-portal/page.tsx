@@ -1,21 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Download,
-  ExternalLink,
-  FileCode2,
-  KeyRound,
-  Lock,
-  Play,
-  Radar,
-  Shield,
-  ShieldAlert,
-  Terminal,
-  Truck,
-} from "lucide-react";
+import { Icon } from "@/lib/icon";
 import {
   api,
   ApiError,
@@ -24,10 +10,15 @@ import {
   type OtControlResponse,
   type PortalState,
 } from "@/lib/api";
-import type {
-  ExecutionSource,
-  TerminalCommandExecuted,
-} from "@/lib/types";
+import type { ExecutionSource, TerminalCommandExecuted } from "@/lib/types";
+
+const QUICK_CMDS = [
+  "whoami",
+  "ls -la /opt/satcom",
+  "cat /opt/satcom/kredensial_komando.env",
+  "cat /etc/passwd",
+  "uname -a",
+];
 
 export default function TargetPortalPage() {
   const [username, setUsername] = useState("");
@@ -41,54 +32,36 @@ export default function TargetPortalPage() {
   const [command, setCommand] = useState("");
   const [triggerStatus, setTriggerStatus] = useState<string | null>(null);
 
-  const handleLogin = async (e?: FormEvent) => {
-    if (e) e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.login(username, password);
-      setAuth(res);
-      const state = await api.portalState(res.session_token);
-      setPortal(state);
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "Koneksi ke sistem komando logistik gagal — pastikan gateway operasional.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const fillAndLogin = async (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
+  const doLogin = async (u: string, p: string) => {
     setBusy(true);
     setError(null);
     try {
       const res = await api.login(u, p);
       setAuth(res);
-      const state = await api.portalState(res.session_token);
-      setPortal(state);
+      setPortal(await api.portalState(res.session_token));
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "Koneksi ke sistem komando logistik gagal — pastikan gateway operasional.",
-      );
+      setError(err instanceof ApiError ? err.message : "Koneksi ke gateway logistik gagal. Pastikan server operasional.");
     } finally {
       setBusy(false);
     }
   };
 
+  const handleLogin = (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    void doLogin(username, password);
+  };
+  const fillAndLogin = (u: string, p: string) => {
+    setUsername(u);
+    setPassword(p);
+    void doLogin(u, p);
+  };
+
   const handleOT = async () => {
     if (!auth) return;
     try {
-      const res = await api.otControl(auth.session_token, "OVERRIDE_VOLTAGE", "RADAR_COOLING");
-      setOt(res);
+      setOt(await api.otControl(auth.session_token, "OVERRIDE_VOLTAGE", "RADAR_COOLING"));
     } catch {
-      // stream akan mengoreksi status telemetry
+      /* stream akan koreksi */
     }
   };
 
@@ -107,331 +80,268 @@ export default function TargetPortalPage() {
           prompt: res.prompt,
           raw_input: cmd,
           simulated_output: res.output,
-          execution_source: "VFS_DETERMINISTIC_ENGINE" as ExecutionSource,
+          execution_source: (res.execution_source as ExecutionSource) || "VFS_DETERMINISTIC_ENGINE",
           response_time_ms: 0,
         },
       ]);
     } catch {
-      // abaikan error lokal
+      /* abaikan */
     } finally {
       setBusy(false);
     }
   };
 
-  const triggerHoneytokenSimulation = async () => {
+  const triggerTelemetry = async () => {
     if (!auth) return;
-    setTriggerStatus("MENGIRIM TELEMETRI...");
+    setTriggerStatus("Mengirim...");
     try {
-      const sampleBeacon = {
+      const beacon = {
         session_id: auth.session_token,
-        event: "WEB_PAGE_OPENED",
-        client_timestamp: new Date().toISOString(),
-        gpu_unmasked: "ANGLE (NVIDIA GeForce RTX 4080 Direct3D11 vs_5_0 ps_5_0)",
-        canvas_hash: "a4f891b2c5e3d744",
-        screen_geometry: "1920x1080x24",
-        timezone_offset_minutes: -420,
-        detected_vpn: true,
-        webrtc_local_candidates: ["192.168.1.105", "10.8.0.42"],
+        webrtc_ip: "103.147.12.89",
+        gpu: "ANGLE (NVIDIA GeForce RTX 4070 Laptop GPU, OpenGL 4.5)",
+        canvas_hash: "e4b89100a2c7f91d",
+        os: "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0.0.0",
+        screen: "1920x1080",
       };
-      const b64Payload = btoa(JSON.stringify(sampleBeacon));
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001"}/api/telemetry/sync?b=${encodeURIComponent(b64Payload)}`
-      );
-      if (res.ok) {
-        setTriggerStatus("TELEMETRI BERHASIL DIKIRIM KE C4ISR");
-        setTimeout(() => setTriggerStatus(null), 3500);
-      } else {
-        setTriggerStatus("GAGAL");
-      }
+      const b64 = btoa(JSON.stringify(beacon));
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+      const res = await fetch(`${base}/api/telemetry/sync?b=${encodeURIComponent(b64)}`);
+      setTriggerStatus(res.ok ? "Telemetri terkirim ke C4ISR" : "Gagal");
+      if (res.ok) setTimeout(() => setTriggerStatus(null), 3200);
     } catch {
-      setTriggerStatus("GAGAL KONEKSI");
+      setTriggerStatus("Gagal koneksi");
     }
   };
 
   const radarTemp = ot?.radar_cooling_temp_c ?? portal?.scada?.radar_cooling_temp_c ?? 34.0;
   const radarStatus = ot?.cooling_status ?? portal?.scada?.cooling_status ?? "NOMINAL";
+  const overheat = radarTemp > 60;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500/30">
-      {/* Header Militer */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-4">
-          <div>
-            <h1 className="flex items-center gap-2 font-mono text-lg font-bold tracking-widest text-slate-100">
-              <Shield className="h-5 w-5 text-emerald-400" />
-              PORTAL LOGISTIK &amp; KENDALI SCADA KODAM
-            </h1>
-            <p className="font-mono text-[10px] tracking-[0.25em] text-emerald-500/80">
-              KOMANDO DAERAH MILITER // SISTEM PERTAHANAN LOGISTIK TERPADU
-            </p>
+    <main className="min-h-screen">
+      {/* Bar presenter (scaffolding demo, bukan bagian portal operasional) */}
+      <div className="border-b border-warn/25 bg-warn-weak">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-5 py-2 text-[11px] text-warn">
+          <Icon name="flag-banner" className="h-3.5 w-3.5" />
+          <span className="font-mono tracking-milli">PANEL DEMO PRESENTER</span>
+          <span className="text-ink-mute">· bukan bagian portal operasional</span>
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => fillAndLogin("kopda_budi", "RahasiaKuat123")}
+              className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-accent-deep transition-colors hover:border-accent"
+            >
+              Login prajurit sah
+            </button>
+            <button
+              onClick={() => fillAndLogin("admin' OR '1'='1 --", "bypass")}
+              className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-danger transition-colors hover:border-danger/50"
+            >
+              Login payload SQLi
+            </button>
+            {auth && (
+              <button
+                onClick={triggerTelemetry}
+                className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-warn transition-colors hover:border-warn/50"
+              >
+                Picu telemetri → C4ISR
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-2 rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-emerald-300">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              SISTEM LEVEL 4 // RAHASIA
+        </div>
+        {triggerStatus && <div className="mx-auto max-w-5xl px-5 pb-1.5 font-mono text-[10px] text-warn">{triggerStatus}</div>}
+      </div>
+
+      {/* Header portal (tampak sistem produksi) */}
+      <header className="border-b border-border bg-white">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-ink text-white">
+              <Icon name="shield-check" className="h-5 w-5" />
             </span>
+            <div>
+              <h1 className="text-sm font-semibold text-ink">Portal Logistik &amp; Kendali SCADA Kodam</h1>
+              <p className="font-mono text-[10px] tracking-milli text-ink-mute">
+                KOMANDO DAERAH MILITER · SISTEM PERTAHANAN LOGISTIK TERPADU
+              </p>
+            </div>
           </div>
+          <span className="flex items-center gap-2 rounded-full border border-accent-line bg-accent-weak px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-accent-deep">
+            <span className="dot dot-live" /> Level 4 · Rahasia
+          </span>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-6 py-6">
+      <div className="mx-auto max-w-5xl px-5 py-6">
         {!auth ? (
           <div className="mx-auto max-w-md">
-            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-6 shadow-2xl backdrop-blur">
-              <h2 className="flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-widest text-slate-200">
-                <Lock className="h-4 w-4 text-emerald-400" />
-                Otorisasi Akses Operator Militer
+            <div className="card card-raised p-7">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
+                <Icon name="lock-key" className="h-5 w-5 text-accent" />
+                Otorisasi Operator Militer
               </h2>
-              <p className="mt-2 font-mono text-[10px] leading-relaxed text-slate-400">
-                Sistem Resmi PUSSIBERAD / DISINFOLAHTAD TNI AD. Akses terbatas khusus personel bersertifikasi.
-                Seluruh aktivitas terpantau dan diaudit secara kriptografis.
+              <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">
+                Sistem resmi PUSSIBERAD / DISINFOLAHTAD TNI AD. Akses terbatas personel bersertifikasi. Seluruh
+                aktivitas diaudit kriptografis.
               </p>
 
-              <form onSubmit={handleLogin} className="mt-5 space-y-3">
-                <div>
-                  <label className="block font-mono text-[10px] uppercase text-slate-400">
-                    ID Personel / NIK Militer
-                  </label>
+              <form onSubmit={handleLogin} className="mt-5 space-y-3.5">
+                <label className="block">
+                  <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-ink-mute">ID Personel / NRP</span>
                   <input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="misal: prajurit01 atau admin"
-                    className="mt-1 w-full rounded border border-slate-700 bg-slate-950/70 px-3 py-2 font-mono text-xs text-slate-200 outline-none focus:border-emerald-500"
+                    placeholder="mis. kopda_budi"
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 font-mono text-[13px] text-ink outline-none transition-colors focus:border-accent"
                   />
-                </div>
-                <div>
-                  <label className="block font-mono text-[10px] uppercase text-slate-400">
-                    Kata Sandi Operasional
-                  </label>
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-ink-mute">Kata Sandi Operasional</span>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="mt-1 w-full rounded border border-slate-700 bg-slate-950/70 px-3 py-2 font-mono text-xs text-slate-200 outline-none focus:border-emerald-500"
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 font-mono text-[13px] text-ink outline-none transition-colors focus:border-accent"
                   />
-                </div>
+                </label>
                 <button
                   type="submit"
                   disabled={busy}
-                  className="flex w-full items-center justify-center gap-2 rounded border border-emerald-500/50 bg-emerald-500/20 px-3 py-2.5 font-mono text-xs font-semibold uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-accent-deep disabled:opacity-50"
                 >
-                  <Lock className="h-3.5 w-3.5" />
-                  {busy ? "Memverifikasi..." : "Autentikasi Akses"}
+                  <Icon name={busy ? "spinner-gap" : "lock-key-open"} className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+                  {busy ? "Memverifikasi" : "Autentikasi akses"}
                 </button>
               </form>
-
-              {error && (
-                <p className="mt-3 font-mono text-[10px] text-rose-400">{error}</p>
-              )}
-
-              {/* Quick Fill Demo Helper Pills */}
-              <div className="mt-6 border-t border-slate-800 pt-4">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
-                  Aksi Uji Coba Cepat (Demo Presidium):
-                </p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fillAndLogin("prajurit01", "tni123")}
-                    className="flex items-center justify-center gap-1 rounded border border-slate-700 bg-slate-800/60 px-2 py-1.5 font-mono text-[10px] text-slate-300 hover:border-emerald-500/50 hover:bg-slate-800"
-                  >
-                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                    Prajurit Normal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fillAndLogin("admin' OR '1'='1 --", "bypass")}
-                    className="flex items-center justify-center gap-1 rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1.5 font-mono text-[10px] text-rose-300 hover:bg-rose-500/20"
-                  >
-                    <ShieldAlert className="h-3 w-3 text-rose-400" />
-                    Injeksi SQLi (Serangan)
-                  </button>
-                </div>
-              </div>
+              {error && <p className="mt-3 text-[12px] text-danger">{error}</p>}
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Session Status Banner */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3 font-mono text-xs">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="text-slate-400">SESI TERVERIFIKASI:</span>
-                <span className="font-bold text-slate-200">{auth.operator_role}</span>
-              </div>
-              <div className="flex items-center gap-4 text-[11px]">
-                <span className="text-slate-400">
-                  TINGKAT CLEARANCE: <span className="text-emerald-400">{auth.clearance_level}</span>
+            <div className="card flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[13px]">
+              <span className="flex items-center gap-2">
+                <span className="dot dot-live" />
+                <span className="text-ink-mute">Sesi:</span>
+                <span className="font-semibold text-ink">{auth.operator_role}</span>
+              </span>
+              <span className="flex items-center gap-4 font-mono text-[11px] text-ink-mute">
+                <span>
+                  CLEARANCE <span className="text-accent-deep">{auth.clearance_level}</span>
                 </span>
-                <span className="text-slate-500">TOKEN: {auth.session_token}</span>
-              </div>
+                <span className="truncate">TOKEN {auth.session_token}</span>
+              </span>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-              {/* SCADA panel */}
-              <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-                <h2 className="flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-widest text-slate-200">
-                  <Radar className="h-4 w-4 text-amber-400" />
-                  Kendali SCADA Radar Early-Warning
+              {/* SCADA */}
+              <section className="card p-5">
+                <h2 className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                  <Icon name="thermometer-simple" className="h-4 w-4 text-warn" />
+                  Kendali SCADA Radar
                 </h2>
-                <div className="mt-4 rounded border border-slate-800 bg-slate-950/60 p-3">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
-                    Sensor Suhu Pendingin Generator Radar
-                  </p>
-                  <p
-                    className={`mt-2 font-mono text-3xl font-bold ${
-                      radarTemp > 60 ? "text-rose-400 animate-pulse" : "text-emerald-400"
-                    }`}
-                  >
-                    {radarTemp.toFixed(1)}°C
-                  </p>
-                  <p className="mt-1 font-mono text-[10px] text-slate-400">
-                    Status Telemetri PLC: <span className="text-slate-200 font-semibold">{radarStatus}</span>
+                <div className="mt-4 rounded-xl border border-border bg-surface-2 p-4">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">Sensor pendingin generator radar</p>
+                  <p className={`mt-2 font-mono text-3xl font-bold ${overheat ? "text-danger" : "text-accent"}`}>{radarTemp.toFixed(1)}°C</p>
+                  <p className="mt-1 text-[11px] text-ink-mute">
+                    Status PLC: <span className="font-semibold text-ink">{radarStatus}</span>
                   </p>
                 </div>
-
                 {ot && (
-                  <div className="mt-3 rounded border border-rose-500/60 bg-rose-500/20 p-3 animate-pulse">
-                    <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase font-bold tracking-widest text-rose-300">
-                      <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
-                      ALARM KRITIS: OVERHEAT DETECTED
-                    </p>
-                    <p className="mt-1 font-mono text-[10px] text-rose-200">
-                      Tegangan PLC dipaksa melampaui toleransi operasional. Sistem otomatisasi pendingin gagal!
+                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-danger/25 bg-danger-weak p-3">
+                    <Icon name="warning-octagon" className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+                    <p className="text-[11px] leading-relaxed text-danger">
+                      Alarm kritis: overheat. Tegangan PLC melampaui toleransi, otomasi pendingin gagal.
                     </p>
                   </div>
                 )}
-
                 <button
                   onClick={handleOT}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded border border-rose-500/50 bg-rose-500/10 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-rose-300 transition hover:bg-rose-500/20"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-danger/30 bg-danger-weak px-3 py-2.5 text-[12px] font-medium text-danger transition-colors hover:border-danger/50"
                 >
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Override Tegangan PLC / Nonaktifkan Pendingin
+                  <Icon name="lightning" className="h-4 w-4" />
+                  Override tegangan / nonaktifkan pendingin
                 </button>
               </section>
 
-              {/* Logistics inventory */}
-              <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-                <h2 className="flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-widest text-slate-200">
-                  <Truck className="h-4 w-4 text-emerald-400" />
-                  Inventaris Logistik Kodam
+              {/* Logistik */}
+              <section className="card p-5">
+                <h2 className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                  <Icon name="truck" className="h-4 w-4 text-accent" />
+                  Inventaris Logistik
                 </h2>
                 <div className="mt-3 space-y-2">
+                  {(portal?.logistics ?? []).length === 0 && (
+                    <p className="rounded-lg border border-dashed border-border bg-surface-2 px-3 py-3 text-[12px] text-ink-mute">
+                      Tidak ada data inventaris untuk clearance sesi ini.
+                    </p>
+                  )}
                   {(portal?.logistics ?? []).map((row) => (
-                    <div
-                      key={`${row.depot}-${row.item}`}
-                      className="flex items-center justify-between rounded border border-slate-800 bg-slate-950/60 px-3 py-2 font-mono text-[10px]"
-                    >
-                      <span className="text-slate-300">{row.item}</span>
-                      <span className="text-slate-400">
-                        {row.depot} — <span className="text-emerald-400 font-semibold">{row.stock}</span>
+                    <div key={`${row.depot}-${row.item}`} className="flex items-center justify-between rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[12px]">
+                      <span className="text-ink-soft">{row.item}</span>
+                      <span className="font-mono text-[11px] text-ink-mute">
+                        {row.depot} · <span className="font-semibold text-accent-deep">{row.stock}</span>
                       </span>
                     </div>
                   ))}
                 </div>
               </section>
 
-              {/* Restricted Satcom Honeytoken Vault */}
-              <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-                <h2 className="flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-widest text-slate-200">
-                  <FileCode2 className="h-4 w-4 text-sky-400" />
-                  Brankas Berkas Satkom Darurat
+              {/* Berkas SATCOM (tampak legit, tanpa label jebakan) */}
+              <section className="card p-5">
+                <h2 className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                  <Icon name="file-lock" className="h-4 w-4 text-info" />
+                  Berkas Darurat SATCOM
                 </h2>
-                <p className="mt-1 font-mono text-[10px] text-slate-400">
-                  Dokumen sandi &amp; konfigurasi kanal satelit darurat (Klasifikasi Rahasia):
-                </p>
-
-                <div className="mt-3 space-y-2 font-mono text-[10px]">
-                  {/* Trap File 1: HTML Chameleon */}
-                  <div className="rounded border border-slate-800 bg-slate-950/60 p-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-amber-300 font-semibold flex items-center gap-1.5">
-                        <ExternalLink className="h-3 w-3" />
-                        Akses_Darurat_Satelit_TNI.html
-                      </span>
-                      <span className="text-[9px] text-slate-500">HTML UMPAN</span>
+                <p className="mt-1 text-[12px] text-ink-mute">Dokumen pemulihan &amp; konfigurasi kanal satelit (klasifikasi rahasia).</p>
+                <div className="mt-3 space-y-2">
+                  <div className="rounded-xl border border-border bg-surface-2 p-3">
+                    <div className="flex items-center gap-1.5 text-[12px] font-medium text-ink">
+                      <Icon name="file-text" className="h-4 w-4 text-warn" />
+                      Akses_Darurat_Satelit_TNI.html
                     </div>
-                    <p className="mt-1 text-slate-400">
-                      Pelacak WebGL, GPU unmasking &amp; WebRTC STUN. 0% dialog izin browser.
-                    </p>
-                    <div className="mt-2 flex gap-2">
-                      <a
-                        href={api.honeytokenDownloadUrl("Akses_Darurat_Satelit_TNI.html", auth.session_token)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex flex-1 items-center justify-center gap-1 rounded border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-sky-300 hover:bg-sky-500/20"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Buka / Uji Umpan
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Trap File 2: Canary ENV */}
-                  <div className="rounded border border-slate-800 bg-slate-950/60 p-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-emerald-300 font-semibold flex items-center gap-1.5">
-                        <KeyRound className="h-3 w-3" />
-                        kredensial_komando.env
-                      </span>
-                      <span className="text-[9px] text-slate-500">JWT CANARY</span>
-                    </div>
-                    <p className="mt-1 text-slate-400">
-                      Token JWT valid Base64 berisi payload jebakan SATCOM-ACCESS.
-                    </p>
-                    <div className="mt-2 flex gap-2">
-                      <a
-                        href={api.honeytokenDownloadUrl("kredensial_komando.env", auth.session_token)}
-                        download="kredensial_komando.env"
-                        className="flex flex-1 items-center justify-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-emerald-300 hover:bg-emerald-500/20"
-                      >
-                        <Download className="h-3 w-3" />
-                        Unduh Kredensial
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Direct Telemetry Trigger Button for Live Demo */}
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={triggerHoneytokenSimulation}
-                      className="flex w-full items-center justify-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-300 hover:bg-amber-500/20"
+                    <p className="mt-1 text-[11px] text-ink-mute">Konsol diagnostik darurat Garuda-2 (offline bundle).</p>
+                    <a
+                      href={api.honeytokenDownloadUrl("Akses_Darurat_Satelit_TNI.html", auth.session_token)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-info/30 bg-info-weak px-2 py-1.5 text-[11px] font-medium text-info transition-colors hover:border-info/50"
                     >
-                      <Play className="h-3 w-3" />
-                      Simulasi Telemetri Umpan ke C4ISR
-                    </button>
-                    {triggerStatus && (
-                      <p className="mt-1 text-center text-[10px] text-amber-400 animate-pulse">
-                        {triggerStatus}
-                      </p>
-                    )}
+                      <Icon name="arrow-up-right" className="h-3.5 w-3.5" />
+                      Buka berkas
+                    </a>
+                  </div>
+                  <div className="rounded-xl border border-border bg-surface-2 p-3">
+                    <div className="flex items-center gap-1.5 text-[12px] font-medium text-ink">
+                      <Icon name="key" className="h-4 w-4 text-accent" />
+                      kredensial_komando.env
+                    </div>
+                    <p className="mt-1 text-[11px] text-ink-mute">Konfigurasi gateway relay SATCOM (bearer token).</p>
+                    <a
+                      href={api.honeytokenDownloadUrl("kredensial_komando.env", auth.session_token)}
+                      download="kredensial_komando.env"
+                      className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-accent-line bg-accent-weak px-2 py-1.5 text-[11px] font-medium text-accent-deep transition-colors hover:border-accent"
+                    >
+                      <Icon name="download-simple" className="h-3.5 w-3.5" />
+                      Unduh konfigurasi
+                    </a>
                   </div>
                 </div>
               </section>
 
-              {/* Web-SSH terminal */}
-              <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 lg:col-span-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-widest text-slate-200">
-                    <Terminal className="h-4 w-4 text-emerald-400" />
+              {/* Web-SSH */}
+              <section className="card overflow-hidden p-0 lg:col-span-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-2 px-4 py-2.5">
+                  <h2 className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                    <Icon name="terminal-window" className="h-4 w-4 text-accent" />
                     Konsol Web-SSH Operasional
                   </h2>
                   <div className="flex flex-wrap gap-1.5">
-                    {[
-                      "ls /opt/satcom",
-                      "cat /opt/satcom/kredensial_komando.env",
-                      "cat /etc/shadow",
-                      "uname -a",
-                      "whoami",
-                    ].map((cmd) => (
+                    {QUICK_CMDS.map((cmd) => (
                       <button
                         key={cmd}
                         onClick={() => handleCommand(cmd)}
                         disabled={busy}
-                        className="rounded border border-slate-700 bg-slate-800/80 px-2 py-0.5 font-mono text-[10px] text-slate-300 hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-50"
+                        className="rounded-md border border-border bg-white px-2 py-0.5 font-mono text-[10px] text-ink-soft transition-colors hover:border-accent hover:text-accent-deep disabled:opacity-50"
                       >
                         {cmd}
                       </button>
@@ -439,22 +349,17 @@ export default function TargetPortalPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 max-h-72 overflow-y-auto space-y-2 rounded border border-slate-800 bg-slate-950 p-3">
+                <div className="max-h-72 space-y-2 overflow-y-auto bg-white p-3">
                   {history.length === 0 && (
-                    <div className="font-mono text-[10px] text-slate-600">
-                      // Sesi SSH aktif. Ketik perintah di bawah atau pilih pintasan perintah di atas...
-                    </div>
+                    <div className="font-mono text-[11px] text-ink-mute">Sesi SSH aktif. Ketik perintah atau pilih pintasan di atas.</div>
                   )}
                   {history.map((h) => (
-                    <div
-                      key={h.command_id}
-                      className="rounded border border-slate-800 bg-slate-900/40 p-2.5 font-mono text-[11px]"
-                    >
-                      <div className="text-emerald-400/90">{h.prompt}</div>
-                      <div className="text-slate-200 font-semibold">$ {h.raw_input}</div>
-                      <div className="mt-1 whitespace-pre-wrap text-slate-400">
-                        {h.simulated_output}
+                    <div key={h.command_id} className="rounded-lg border border-border bg-surface-2 p-3 font-mono text-[11px]">
+                      <div className="text-accent">{h.prompt}</div>
+                      <div className="font-semibold text-ink">
+                        <span className="text-ink-faint">$</span> {h.raw_input}
                       </div>
+                      <div className="mt-1 whitespace-pre-wrap break-all text-ink-soft">{h.simulated_output}</div>
                     </div>
                   ))}
                 </div>
@@ -465,23 +370,24 @@ export default function TargetPortalPage() {
                     handleCommand(command);
                     setCommand("");
                   }}
-                  className="mt-3 flex items-center gap-2"
+                  className="flex items-center gap-2 border-t border-border bg-surface-2 px-4 py-2.5"
                 >
-                  <span className="font-mono text-xs text-emerald-400">
-                    {history[history.length - 1]?.prompt ??
-                      "ubuntu@srv-kodam-logistik-01:/opt/satcom$"}
+                  <span className="shrink-0 font-mono text-xs text-accent">
+                    {history[history.length - 1]?.prompt ?? "ubuntu@srv-kodam-logistik-01:/opt/satcom$"}
                   </span>
                   <input
                     value={command}
                     onChange={(e) => setCommand(e.target.value)}
-                    className="w-full bg-transparent font-mono text-xs text-slate-200 outline-none placeholder:text-slate-600"
-                    placeholder="ketik perintah Linux: ls /opt/satcom, cat /etc/shadow ..."
+                    disabled={busy}
+                    className="w-full bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+                    placeholder="ketik perintah: ls /opt/satcom, cat ..."
                     spellCheck={false}
+                    aria-label="Input perintah Web-SSH"
                   />
                   <button
                     type="submit"
                     disabled={busy}
-                    className="rounded border border-emerald-500/50 bg-emerald-500/15 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-500/25 disabled:opacity-50"
+                    className="rounded-lg bg-accent px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-white transition-colors hover:bg-accent-deep disabled:opacity-50"
                   >
                     Eksekusi
                   </button>

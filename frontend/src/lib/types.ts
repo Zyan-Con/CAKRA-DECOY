@@ -1,5 +1,5 @@
 /**
- * CAKRA-DECOY 2.0 — Frontend Type Contract (mirror dari backend/schemas.py).
+ * CAKRA-DECOY 2.0 · Frontend Type Contract (mirror dari backend/schemas.py).
  * Sumber kebenaran: backend/schemas.py + docs/API_CONTRACT.md (schema_version 2.0).
  * Kalau backend naik schema_version, naikkan juga di sini + di docs.
  */

@@ -87,29 +87,29 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# 3 node contoh; ganti dengan 15 Kodam asli nanti.
+# 15 Komando Daerah Militer (Kodam) se-Indonesia. Koordinat ibu kota satuan.
+def _kodam(kodam_id: str, name: str, lat: float, lng: float) -> KodamNode:
+    return KodamNode(
+        kodam_id=kodam_id, name=name, lat=lat, lng=lng, status=KodamStatus.STANDBY
+    )
+
+
 DEFAULT_KODAM = [
-    KodamNode(
-        kodam_id="KODAM-JAYA",
-        name="Kodam Jaya/Jayakarta",
-        lat=-6.2250,
-        lng=106.8700,
-        status=KodamStatus.STANDBY,
-    ),
-    KodamNode(
-        kodam_id="KODAM-III",
-        name="Kodam III/Siliwangi",
-        lat=-6.9175,
-        lng=107.6191,
-        status=KodamStatus.STANDBY,
-    ),
-    KodamNode(
-        kodam_id="KODAM-IV",
-        name="Kodam IV/Diponegoro",
-        lat=-7.0491,
-        lng=110.4150,
-        status=KodamStatus.STANDBY,
-    ),
+    _kodam("KODAM-IM", "Kodam Iskandar Muda", 5.5483, 95.3238),       # Banda Aceh
+    _kodam("KODAM-I", "Kodam I/Bukit Barisan", 3.5952, 98.6722),      # Medan
+    _kodam("KODAM-II", "Kodam II/Sriwijaya", -2.9761, 104.7754),      # Palembang
+    _kodam("KODAM-JAYA", "Kodam Jaya/Jayakarta", -6.2250, 106.8700),  # Jakarta
+    _kodam("KODAM-III", "Kodam III/Siliwangi", -6.9175, 107.6191),    # Bandung
+    _kodam("KODAM-IV", "Kodam IV/Diponegoro", -7.0051, 110.4381),     # Semarang
+    _kodam("KODAM-V", "Kodam V/Brawijaya", -7.2575, 112.7521),        # Surabaya
+    _kodam("KODAM-IX", "Kodam IX/Udayana", -8.6705, 115.2126),        # Denpasar
+    _kodam("KODAM-XII", "Kodam XII/Tanjungpura", -0.0263, 109.3425),  # Pontianak
+    _kodam("KODAM-VI", "Kodam VI/Mulawarman", -0.5022, 117.1536),     # Balikpapan
+    _kodam("KODAM-XIII", "Kodam XIII/Merdeka", 1.4748, 124.8421),     # Manado
+    _kodam("KODAM-XIV", "Kodam XIV/Hasanuddin", -5.1477, 119.4327),   # Makassar
+    _kodam("KODAM-XVI", "Kodam XVI/Pattimura", -3.6954, 128.1814),    # Ambon
+    _kodam("KODAM-XVIII", "Kodam XVIII/Kasuari", -0.8615, 134.0620),  # Manokwari
+    _kodam("KODAM-XVII", "Kodam XVII/Cenderawasih", -2.5337, 140.7181),  # Jayapura
 ]
 
 _DEMO_SESSION = "ses-kdm03-9941a"

@@ -36,6 +36,10 @@ class SessionStore:
 
     def __init__(self) -> None:
         self._sessions: dict[str, SessionState] = {}
+        # Telemetri honeytoken terakhir per sesi (IP asli, fingerprint, geo).
+        # Disimpan terpisah dari SessionState supaya tidak membebani payload WS,
+        # tapi tetap bisa dipakai generator PDF DFIR (bukti atribusi nyata).
+        self._telemetry: dict[str, dict] = {}
 
     def create(
         self,
@@ -78,6 +82,16 @@ class SessionStore:
         s = self._sessions.get(session_id)
         if s is not None:
             s.real_leaked_ip = real_ip
+
+    def set_telemetry(self, session_id: str, telemetry: dict) -> None:
+        """Simpan telemetri honeytoken terakhir (dipakai PDF DFIR)."""
+        self._telemetry[session_id] = telemetry
+        s = self._sessions.get(session_id)
+        if s is not None and telemetry.get("real_leaked_ip"):
+            s.real_leaked_ip = telemetry["real_leaked_ip"]
+
+    def get_telemetry(self, session_id: str) -> Optional[dict]:
+        return self._telemetry.get(session_id)
 
     def set_profile(self, session_id: str, profile: AttackerProfile) -> None:
         s = self._sessions.get(session_id)

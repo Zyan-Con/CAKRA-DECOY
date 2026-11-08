@@ -112,10 +112,21 @@ def _ls(path: str) -> list[str]:
     return sorted(names)
 
 
-def run(command: str, cwd: str = DEFAULT_CWD) -> ShellResult:
-    """Eksekusi satu baris perintah. Kembalikan output + cwd baru."""
+def run(
+    command: str,
+    cwd: str = DEFAULT_CWD,
+    overrides: dict[str, str] | None = None,
+) -> ShellResult:
+    """
+    Eksekusi satu baris perintah. Kembalikan output + cwd baru.
+
+    `overrides` = peta {path_absolut: konten} untuk menimpa isi file VFS per-request.
+    Dipakai caller (main.py) menyuntik konten honeytoken dinamis (JWT valid + host
+    aktual) ke `kredensial_komando.env` / `Akses_Darurat_Satelit_TNI.html`, supaya
+    token yang dibaca penyerang via `cat` identik dengan file yang diunduh.
+    """
     t0 = time.perf_counter()
-    out, new_cwd, source = _dispatch(command.strip(), cwd)
+    out, new_cwd, source = _dispatch(command.strip(), cwd, overrides or {})
     ms = round((time.perf_counter() - t0) * 1000, 3)
     return ShellResult(
         output=out, cwd=new_cwd, execution_source=source, response_time_ms=ms
@@ -126,7 +137,10 @@ def prompt_for(cwd: str) -> str:
     return f"{_PROMPT_HOST}:{cwd}$"
 
 
-def _dispatch(line: str, cwd: str) -> tuple[str, str, str]:
+def _dispatch(
+    line: str, cwd: str, overrides: dict[str, str] | None = None
+) -> tuple[str, str, str]:
+    overrides = overrides or {}
     if not line:
         return "", cwd, ExecSource.VFS
     tokens = line.split()
@@ -188,6 +202,9 @@ def _dispatch(line: str, cwd: str) -> tuple[str, str, str]:
         if not args:
             return "cat: missing operand", cwd, ExecSource.VFS
         path = _norm(args[0], cwd)
+        if path in overrides:
+            # Konten honeytoken dinamis (JWT valid + host aktual) disuntik caller.
+            return overrides[path], cwd, ExecSource.VFS
         node = _VFS.get(path)
         if node is None:
             return f"cat: {args[0]}: No such file or directory", cwd, ExecSource.VFS

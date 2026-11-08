@@ -12,10 +12,12 @@ Lihat to-fix.md.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 
-THRESHOLD = 70  # skor >= ini dianggap serangan -> belokkan ke decoy
+# skor >= ini dianggap serangan -> belokkan ke decoy. Bisa diatur via env.
+THRESHOLD = int(os.getenv("THREAT_SCORE_THRESHOLD", "70"))
 
 # Tiap pola: (regex, bobot, label_vektor). Bobot ditumpuk; vektor dari match terberat.
 _PATTERNS: list[tuple[re.Pattern[str], int, str]] = [

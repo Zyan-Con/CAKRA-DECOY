@@ -199,10 +199,22 @@ async def ot_control(req: OTControlReq) -> dict:
 
 
 @app.post("/api/sys/console")
-async def sys_console(req: ConsoleReq) -> dict:
+async def sys_console(req: ConsoleReq, request: Request) -> dict:
     s = decoy.store.get(req.session_token)
     cwd = s.cwd if s is not None else ai_shell.DEFAULT_CWD
-    result = ai_shell.run(req.command, cwd)
+    # Suntik konten honeytoken dinamis: token yang dibaca via `cat` identik dengan
+    # file yang diunduh (JWT valid + host aktual), sehingga Operasi Bumerang tetap
+    # terpicu walau penyerang menyalin token dari terminal, bukan dari file unduhan.
+    base_url = str(request.base_url).rstrip("/")
+    overrides = {
+        "/opt/satcom/kredensial_komando.env": honeytoken.generate_env_honeytoken(
+            req.session_token, base_url
+        ),
+        "/opt/satcom/Akses_Darurat_Satelit_TNI.html": honeytoken.generate_html_honeytoken(
+            req.session_token, base_url
+        ),
+    }
+    result = ai_shell.run(req.command, cwd, overrides=overrides)
     if s is not None:
         decoy.store.update_cwd(req.session_token, result.cwd)
 
@@ -237,6 +249,8 @@ async def sys_console(req: ConsoleReq) -> dict:
         "output": result.output,
         "cwd": result.cwd,
         "prompt": ai_shell.prompt_for(result.cwd),
+        "execution_source": result.execution_source,
+        "response_time_ms": result.response_time_ms,
     }
 
 
@@ -292,10 +306,11 @@ async def telemetry_sync(request: Request) -> dict:
         details=tel,
     )
 
-    # Update decoy session
+    # Update decoy session + simpan telemetri untuk laporan DFIR
     s = decoy.store.get(sid)
     if s is not None:
         s.real_leaked_ip = leaked_ip
+    decoy.store.set_telemetry(sid, tel)
 
     # Siarkan ke WebSocket
     await ws.manager.broadcast(
@@ -349,6 +364,7 @@ async def satcom_keys(request: Request) -> dict:
         s = decoy.store.get(session_id)
         if s is not None:
             s.real_leaked_ip = client_ip
+        decoy.store.set_telemetry(session_id, tel)
 
         await ws.manager.broadcast(
             make_event(
@@ -412,10 +428,15 @@ async def restore_ledger() -> dict:
 async def export_pdf(session_token: str | None = None) -> Response:
     s = decoy.store.get(session_token) if session_token else None
     sess_dict = s.model_dump() if s else None
+    telemetry = decoy.store.get_telemetry(session_token) if session_token else None
     blocks = forensic_chain.forensic_ledger.get_all_blocks()
+    _, bad_idx, chain_status = forensic_chain.forensic_ledger.verify_chain()
     pdf_bytes = pdf_service.generate_military_dfir_pdf(
         session_data=sess_dict,
+        telemetry_data=telemetry,
         ledger_blocks=blocks,
+        chain_status=chain_status,
+        tampered_block_index=bad_idx,
     )
     filename = f"Laporan_DFIR_PUSSIBERAD_{session_token or 'INCIDENT'}.pdf"
     return Response(
@@ -427,8 +448,9 @@ async def export_pdf(session_token: str | None = None) -> Response:
 
 @app.post("/api/immunity/broadcast")
 async def immunity_broadcast(req: ImmunityReq) -> dict:
-    sid = req.session_token or "SES-KDM03-9941A"
+    sid = req.session_token or "ses-kdm03-9941a"
     s = decoy.store.get(sid)
+    # Pakai IP asli yang bocor dari honeytoken bila ada; fallback hanya untuk demo.
     leaked_ip = s.real_leaked_ip if s and s.real_leaked_ip else "103.147.12.89"
 
     rule = GeneratedRule(

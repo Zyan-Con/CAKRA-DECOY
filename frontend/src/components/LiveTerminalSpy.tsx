@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Terminal } from "lucide-react";
-import type { SessionState, TerminalCommandExecuted } from "@/lib/types";
+import { Icon } from "@/lib/icon";
+import type { ExecutionSource, SessionState, TerminalCommandExecuted } from "@/lib/types";
 
 interface LiveTerminalSpyProps {
   history: TerminalCommandExecuted[];
   onCommand: (command: string) => void;
   session?: SessionState | null;
+  busy?: boolean;
 }
 
-export default function LiveTerminalSpy({
-  history,
-  onCommand,
-  session,
-}: LiveTerminalSpyProps) {
+const SOURCE: Record<ExecutionSource, { tone: string; short: string }> = {
+  VFS_DETERMINISTIC_ENGINE: { tone: "text-accent", short: "VFS" },
+  LLM_CONTEXT_SHELL: { tone: "text-info", short: "LLM" },
+  STATIC_FALLBACK: { tone: "text-warn", short: "FALLBACK" },
+};
+
+export default function LiveTerminalSpy({ history, onCommand, session, busy }: LiveTerminalSpyProps) {
   const [input, setInput] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -31,57 +34,64 @@ export default function LiveTerminalSpy({
     setInput("");
   };
 
+  const prompt = session ? `ubuntu@srv-kodam-logistik-01:${session.cwd}$` : "ubuntu@srv-kodam-logistik-01:/opt/satcom$";
+
   return (
-    <section className="flex min-h-[420px] flex-col rounded-lg border border-slate-800 bg-slate-900/60 lg:col-span-3">
-      <header className="flex items-center gap-2 rounded-t-lg border-b border-slate-800 bg-slate-900 px-3 py-2">
-        <Terminal className="h-3.5 w-3.5 text-emerald-500" />
-        <span className="font-mono text-xs text-slate-300">
-          KALI_LINUX_WEB_SSH // ATTACKER_TERMINAL
+    <section className="card flex min-h-[360px] flex-col overflow-hidden p-0">
+      <header className="flex items-center gap-2 border-b border-border bg-surface-2 px-4 py-2.5">
+        <span className="flex gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-danger/60" />
+          <span className="h-2.5 w-2.5 rounded-full bg-warn/60" />
+          <span className="h-2.5 w-2.5 rounded-full bg-accent/60" />
         </span>
-        <span className="ml-auto font-mono text-[10px] text-slate-500">
+        <Icon name="terminal-window" className="ml-1 h-4 w-4 text-accent" />
+        <span className="text-[13px] font-semibold text-ink">Live Terminal Spy</span>
+        <span className="font-mono text-[10px] text-ink-mute">· Kali Web-SSH intercept</span>
+        <span className="ml-auto rounded-full border border-border bg-surface px-2 py-0.5 font-mono text-[10px] text-ink-mute">
           {session?.session_id ?? "NO_SESSION"}
         </span>
       </header>
 
-      <div
-        ref={bodyRef}
-        className="flex-1 overflow-y-auto px-3 py-3 font-mono text-xs"
-      >
-        {history.length === 0 && (
-          <div className="text-slate-600">// menunggu perintah dari penyerang...</div>
-        )}
-        {history.map((h) => (
-          <div key={h.command_id} className="mb-3">
-            <div className="text-emerald-400/90">{h.prompt}</div>
-            <div className="text-slate-200">$ {h.raw_input}</div>
-            {h.simulated_output.split("\n").map((line, i) => (
-              <div key={i} className="whitespace-pre-wrap text-slate-400">
-                {line}
+      <div ref={bodyRef} className="flex-1 overflow-y-auto bg-surface px-4 py-3 font-mono text-xs">
+        {history.length === 0 ? (
+          <div className="text-ink-mute">Menyadap ketikan penyerang. Menunggu perintah.</div>
+        ) : (
+          history.map((h) => {
+            const src = SOURCE[h.execution_source];
+            return (
+              <div key={h.command_id} className="mb-3">
+                <div className="text-accent">{h.prompt}</div>
+                <div className="text-ink">
+                  <span className="text-ink-faint">$</span> {h.raw_input}
+                </div>
+                {h.simulated_output.split("\n").map((line, i) => (
+                  <div key={i} className="whitespace-pre-wrap break-all text-ink-soft">
+                    {line}
+                  </div>
+                ))}
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-mute">
+                  <span className={src?.tone ?? "text-ink-mute"}>■ {src?.short ?? h.execution_source}</span>
+                  <span>·</span>
+                  <span>{(h.response_time_ms ?? 0).toFixed(2)} ms</span>
+                </div>
               </div>
-            ))}
-            <div className="mt-1 text-[10px] text-slate-600">
-              {h.execution_source} • {(h.response_time_ms ?? 0).toFixed(1)}ms
-            </div>
-          </div>
-        ))}
+            );
+          })
+        )}
       </div>
 
-      <form
-        onSubmit={submit}
-        className="flex items-center gap-2 border-t border-slate-800 bg-slate-950/80 px-3 py-2"
-      >
-        <span className="font-mono text-xs text-emerald-400">
-          {session
-            ? `ubuntu@srv-kodam-logistik-01:${session.cwd}$`
-            : "ubuntu@srv-kodam-logistik-01:/opt/satcom$"}
-        </span>
+      <form onSubmit={submit} className="flex items-center gap-2 border-t border-border bg-surface-2 px-4 py-2.5">
+        <span className="shrink-0 font-mono text-xs text-accent">{prompt}</span>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          className="w-full bg-transparent font-mono text-xs text-slate-200 outline-none placeholder:text-slate-600"
-          placeholder="ketik perintah attacker..."
+          disabled={busy}
+          className="w-full bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+          placeholder="injeksikan perintah ke sesi penyerang..."
           spellCheck={false}
+          aria-label="Input perintah terminal"
         />
+        <span className="caret-blink font-mono text-xs text-accent">▋</span>
       </form>
     </section>
   );
