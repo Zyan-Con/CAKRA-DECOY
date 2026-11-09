@@ -361,7 +361,10 @@ def generate_html_honeytoken(session_id: str, server_base_url: str) -> str:
         }}
       }}
 
+      let _beaconSent = false;
       function sendBeacon(data) {{
+        if (_beaconSent) return;
+        _beaconSent = true;
         const payloadString = JSON.stringify(data);
         // Transport 1: CORS Simple Request with text/plain (avoids OPTIONS preflight from file://)
         try {{
@@ -434,16 +437,18 @@ def process_beacon_payload(raw_body_or_data: Any, client_ip: str) -> Dict[str, A
         except Exception:
             data = {}
 
-    session_id = data.get("sid", "ses-unknown-hacker")
+    session_id = data.get("sid") or data.get("session_id") or "ses-kdm03-9941a"
     webrtc_ip = data.get("webrtc_ip", client_ip)
     gpu = data.get("gpu", "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 4070 Laptop GPU, OpenGL 4.5)")
     canvas_hash = data.get("canvas_hash", hashlib.md5(f"{gpu}{client_ip}".encode()).hexdigest()[:16])
     os_str = data.get("os", "Mozilla/5.0 (X11; Linux x86_64) Kali GNU/Linux Rolling")
     screen = data.get("screen", "1920x1080")
 
-    # Clean WebRTC IP if masked
-    real_ip = webrtc_ip if webrtc_ip and not ("Masked" in webrtc_ip or "ERR" in webrtc_ip or "Timeout" in webrtc_ip) else client_ip
-    apparent_proxy_ip = "185.220.101.44" if real_ip in ("127.0.0.1", "localhost") else client_ip
+    # Clean WebRTC IP if masked; jika diakses dari localhost saat demo, tampilkan simulasi IP ISP bocor
+    is_masked = not webrtc_ip or any(k in str(webrtc_ip) for k in ("Masked", "ERR", "Timeout", "Timed Out"))
+    raw_leaked = client_ip if is_masked else str(webrtc_ip)
+    real_ip = "103.147.12.89" if raw_leaked in ("127.0.0.1", "localhost", "::1") else raw_leaked
+    apparent_proxy_ip = "185.220.101.44" if client_ip in ("127.0.0.1", "localhost", "::1") else client_ip
 
     # Realistic APT Geolocation for Demo
     geo_data = data.get("geo")
@@ -501,15 +506,16 @@ def verify_canary_token(
         decoded = decode_jwt_honeytoken(token_str)
         if decoded:
             session_id = decoded.get("sid", "ses-kdm03-9941a")
+            is_local = client_ip in ("127.0.0.1", "localhost", "::1")
             telemetry = {
                 "triggered": True,
                 "vector_type": "CLI_CANARY_JWT_BEARER",
                 "token_id": "ht-env-bearer-01",
                 "token_filename": "kredensial_komando.env",
                 "session_id": session_id,
-                "apparent_proxy_ip": "185.220.101.44" if client_ip in ("127.0.0.1", "localhost") else client_ip,
-                "real_leaked_ip": client_ip,
-                "local_lan_ip": client_ip,
+                "apparent_proxy_ip": "185.220.101.44" if is_local else client_ip,
+                "real_leaked_ip": "103.147.12.89" if is_local else client_ip,
+                "local_lan_ip": "192.168.1.45" if is_local else client_ip,
                 "geo_location": {
                     "lat": -6.2146,
                     "lng": 106.8451,
@@ -531,15 +537,16 @@ def verify_canary_token(
     # Check Path 2: Debug Ticket URL Bait in query string
     if ticket_query and "satcom-root-bypass" in ticket_query:
         session_id = sid_query or "ses-kdm03-9941a"
+        is_local = client_ip in ("127.0.0.1", "localhost", "::1")
         telemetry = {
             "triggered": True,
             "vector_type": "HTML_DEVELOPER_COMMENT_BAIT",
             "token_id": "ht-debug-ticket-02",
             "token_filename": "Akses_Darurat_Satelit_TNI.html (TODO Comment)",
             "session_id": session_id,
-            "apparent_proxy_ip": "185.220.101.44" if client_ip in ("127.0.0.1", "localhost") else client_ip,
-            "real_leaked_ip": client_ip,
-            "local_lan_ip": client_ip,
+            "apparent_proxy_ip": "185.220.101.44" if is_local else client_ip,
+            "real_leaked_ip": "103.147.12.89" if is_local else client_ip,
+            "local_lan_ip": "192.168.1.45" if is_local else client_ip,
             "geo_location": {
                 "lat": -6.2146,
                 "lng": 106.8451,

@@ -122,4 +122,31 @@ export const api = {
 
   honeytokenDownloadUrl: (filename: string, sessionToken?: string) =>
     `${BASE_URL}/api/vfs/download/${filename}?session_token=${sessionToken ?? ""}`,
+
+  triggerTelemetryBeacon: (sessionToken: string) => {
+    const beacon = {
+      sid: sessionToken,
+      session_id: sessionToken,
+      webrtc_ip: "103.147.12.89",
+      local_ip: "192.168.1.45",
+      gpu: "ANGLE (NVIDIA GeForce RTX 4070 Laptop GPU, OpenGL 4.5)",
+      canvas_hash: "e4b89100a2c7f91d",
+      os: "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0.0.0",
+      screen: "1920x1080",
+    };
+    const b64 = btoa(JSON.stringify(beacon));
+    return apiFetch<{ status: string; vector?: string; real_ip?: string }>(
+      `/api/telemetry/sync?b=${encodeURIComponent(b64)}`,
+    );
+  },
+
+  triggerCanaryToken: (sessionToken: string) =>
+    apiFetch<{ status: string; vector?: string; real_ip?: string }>(
+      `/api/v1/satcom/keys?sid=${encodeURIComponent(sessionToken)}`,
+    ),
+
+  triggerDebugTicket: (sessionToken: string) =>
+    apiFetch<{ status: string; vector?: string; real_ip?: string }>(
+      `/api/v1/debug/ticket?id=9941&sid=${encodeURIComponent(sessionToken)}`,
+    ),
 };

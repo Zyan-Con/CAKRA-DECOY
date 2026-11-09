@@ -1,14 +1,11 @@
 """
-CAKRA-DECOY 2.0 — FastAPI entrypoint (scaffold).
+CAKRA-DECOY 2.0 — FastAPI entrypoint.
 
 Jalankan (dari folder backend/):
-    uvicorn main:app --reload --port 8000
+    uvicorn main:app --reload --port 8001
 
 Set DEMO_EMITTER=1 di .env untuk memancarkan event palsu ke frontend
 tanpa perlu logic backend asli selesai.
-
-Modul logic (detector, decoy, ai_shell, mitre_service, honeytoken,
-forensic_chain, pdf_service) nanti didaftarkan router-nya di sini.
 """
 
 from __future__ import annotations
@@ -102,16 +99,41 @@ class ConsoleReq(BaseModel):
     command: str
 
 
-# ---------------- Endpoint inti ----------------
+# ---------------- Helpers ----------------
 
 
 async def _emit_mitre(session_id: str, **signal) -> None:
-    """Analisis MITRE + broadcast. Dipanggil via create_task biar non-blocking."""
+    """Analisis MITRE + simpan profil atribusi + broadcast non-blocking."""
     enrich = mitre_service.profiler.analyze(session_id, **signal)
+    if enrich.attacker_profile is not None:
+        decoy.store.set_profile(session_id, enrich.attacker_profile)
     await ws.manager.broadcast(
         make_event(
             EventType.MITRE_ENRICHMENT_READY,
             enrich,
+            session_id=session_id,
+            seq=ws.manager.next_seq(),
+        )
+    )
+
+
+async def _broadcast_ledger_sync(
+    block_index: int,
+    action_summary: str,
+    session_id: str | None = None,
+) -> None:
+    """Siarkan pembaruan rantai blok SHA-256 ke Command Center secara real-time."""
+    is_valid, bad_idx, _ = forensic_chain.forensic_ledger.verify_chain()
+    await ws.manager.broadcast(
+        make_event(
+            EventType.FORENSIC_INTEGRITY_ALERT,
+            ForensicIntegrityAlert(
+                block_index=block_index,
+                chain_integrity=ChainIntegrity.VALID if is_valid else ChainIntegrity.TAMPERED,
+                tampered_block_index=bad_idx,
+                action_summary=action_summary,
+                ledger=ws.build_forensic_blocks(),
+            ),
             session_id=session_id,
             seq=ws.manager.next_seq(),
         )
@@ -124,6 +146,9 @@ _OPAQUE_LOGIN_RESPONSE = {
     "operator_role": "LOGISTICS_COMMAND_ADMIN",
     "clearance_level": "LEVEL_4_RESTRICTED",
 }
+
+
+# ---------------- Endpoint inti ----------------
 
 
 @app.post("/api/auth/login")
@@ -142,25 +167,32 @@ async def login(req: LoginReq, request: Request) -> dict:
             result.entry_vector,
             apparent_ip=client_ip,
         )
-        forensic_chain.forensic_ledger.add_block(
+        blk = forensic_chain.forensic_ledger.add_block(
             token,
             f"INITIAL_INFILTRATION: Threat Score {result.score} via {result.entry_vector}",
             details={"threat_score": result.score, "entry_vector": result.entry_vector},
         )
+        alert_payload = InterceptionAlert(
+            threat_score=result.score,
+            entry_vector=result.entry_vector,
+            routing_mode=RoutingMode.DECOY,
+            interception_latency_ms=latency_ms,
+        )
+        decoy.store.latest_alert = alert_payload
         await ws.manager.broadcast(
             make_event(
                 EventType.INTERCEPTION_ALERT,
-                InterceptionAlert(
-                    threat_score=result.score,
-                    entry_vector=result.entry_vector,
-                    routing_mode=RoutingMode.DECOY,
-                    interception_latency_ms=latency_ms,
-                ),
+                alert_payload,
                 session_id=token,
                 seq=ws.manager.next_seq(),
             )
         )
+        await _broadcast_ledger_sync(
+            blk["block_index"], blk["action_summary"], session_id=token
+        )
         asyncio.create_task(_emit_mitre(token, vector=result.entry_vector))
+    else:
+        decoy.store.update_cwd(token, ai_shell.DEFAULT_CWD)
     # Prajurit sah maupun penyerang menerima respon + token yang sama bentuknya.
     return {**_OPAQUE_LOGIN_RESPONSE, "session_token": token}
 
@@ -174,20 +206,35 @@ async def portal_state(session_token: str) -> dict:
 
 
 @app.post("/api/ot/control")
-async def ot_control(req: OTControlReq) -> dict:
+async def ot_control(req: OTControlReq, request: Request) -> dict:
+    # Jika sesi belum terdaftar di decoy (mis. eskalasi pasca-login), belokkan ke decoy
+    if decoy.store.get(req.session_token) is None:
+        client_ip = request.client.host if request.client else None
+        decoy.store.create(
+            req.session_token,
+            RoutingMode.DECOY,
+            88,
+            "SCADA_PARAM_ANOMALY",
+            apparent_ip=client_ip,
+        )
     illusion = decoy.ot_sabotage_illusion(req.target_system, req.action)
-    forensic_chain.forensic_ledger.add_block(
+    blk = forensic_chain.forensic_ledger.add_block(
         req.session_token,
         f"OT_SCADA_SABOTAGE: Action '{req.action}' targeted '{req.target_system}' (Overheat illusion: 115.8°C)",
         details=illusion,
     )
+    ot_payload = OTSabotageAttempt(**illusion)
+    decoy.store.latest_ot = ot_payload
     await ws.manager.broadcast(
         make_event(
             EventType.OT_SABOTAGE_ATTEMPT,
-            OTSabotageAttempt(**illusion),
+            ot_payload,
             session_id=req.session_token,
             seq=ws.manager.next_seq(),
         )
+    )
+    await _broadcast_ledger_sync(
+        blk["block_index"], blk["action_summary"], session_id=req.session_token
     )
     asyncio.create_task(_emit_mitre(req.session_token, ot_action=req.action))
     # Penyerang cuma lihat ilusi overheat; sistem asli tetap aman.
@@ -200,8 +247,7 @@ async def ot_control(req: OTControlReq) -> dict:
 
 @app.post("/api/sys/console")
 async def sys_console(req: ConsoleReq, request: Request) -> dict:
-    s = decoy.store.get(req.session_token)
-    cwd = s.cwd if s is not None else ai_shell.DEFAULT_CWD
+    cwd = decoy.store.get_cwd(req.session_token, ai_shell.DEFAULT_CWD)
     # Suntik konten honeytoken dinamis: token yang dibaca via `cat` identik dengan
     # file yang diunduh (JWT valid + host aktual), sehingga Operasi Bumerang tetap
     # terpicu walau penyerang menyalin token dari terminal, bukan dari file unduhan.
@@ -215,10 +261,9 @@ async def sys_console(req: ConsoleReq, request: Request) -> dict:
         ),
     }
     result = ai_shell.run(req.command, cwd, overrides=overrides)
-    if s is not None:
-        decoy.store.update_cwd(req.session_token, result.cwd)
+    decoy.store.update_cwd(req.session_token, result.cwd)
 
-    forensic_chain.forensic_ledger.add_block(
+    blk = forensic_chain.forensic_ledger.add_block(
         req.session_token,
         f"TERMINAL_COMMAND: '{req.command}' executed in {result.cwd} ({result.execution_source})",
         details={
@@ -228,27 +273,36 @@ async def sys_console(req: ConsoleReq, request: Request) -> dict:
         },
     )
 
+    cmd_id = f"cmd-{uuid4().hex[:6]}"
+    prompt_str = ai_shell.prompt_for(result.cwd)
+    term_payload = TerminalCommandExecuted(
+        command_id=cmd_id,
+        cwd=result.cwd,
+        prompt=prompt_str,
+        raw_input=req.command,
+        simulated_output=result.output,
+        execution_source=result.execution_source,
+        response_time_ms=result.response_time_ms,
+    )
+    decoy.store.add_terminal_entry(term_payload)
+
     await ws.manager.broadcast(
         make_event(
             EventType.TERMINAL_COMMAND_EXECUTED,
-            TerminalCommandExecuted(
-                command_id=f"cmd-{uuid4().hex[:6]}",
-                cwd=result.cwd,
-                prompt=ai_shell.prompt_for(result.cwd),
-                raw_input=req.command,
-                simulated_output=result.output,
-                execution_source=result.execution_source,
-                response_time_ms=result.response_time_ms,
-            ),
+            term_payload,
             session_id=req.session_token,
             seq=ws.manager.next_seq(),
         )
     )
+    await _broadcast_ledger_sync(
+        blk["block_index"], blk["action_summary"], session_id=req.session_token
+    )
     asyncio.create_task(_emit_mitre(req.session_token, command=req.command))
     return {
+        "command_id": cmd_id,
         "output": result.output,
         "cwd": result.cwd,
-        "prompt": ai_shell.prompt_for(result.cwd),
+        "prompt": prompt_str,
         "execution_source": result.execution_source,
         "response_time_ms": result.response_time_ms,
     }
@@ -300,35 +354,38 @@ async def telemetry_sync(request: Request) -> dict:
     leaked_ip = tel.get("real_leaked_ip", client_ip)
 
     # Catat di ledger SHA-256
-    forensic_chain.forensic_ledger.add_block(
+    blk = forensic_chain.forensic_ledger.add_block(
         sid,
         f"HONEYTOKEN_TRIGGER: WebRTC Leak unmasked {leaked_ip} from {tel.get('token_filename')}",
         details=tel,
     )
 
     # Update decoy session + simpan telemetri untuk laporan DFIR
-    s = decoy.store.get(sid)
-    if s is not None:
-        s.real_leaked_ip = leaked_ip
     decoy.store.set_telemetry(sid, tel)
+
+    ht_payload = HoneytokenTriggered(
+        vector_type=HoneytokenVector.HTML_BEACON,
+        token_id=tel["token_id"],
+        token_filename=tel["token_filename"],
+        apparent_proxy_ip=tel["apparent_proxy_ip"],
+        real_leaked_ip=tel["real_leaked_ip"],
+        local_lan_ip=tel["local_lan_ip"],
+        geo_location=GeoLocation(**tel["geo_location"]),
+        device_fingerprint=DeviceFingerprint(**tel["device_fingerprint"]),
+    )
+    decoy.store.latest_honeytoken = ht_payload
 
     # Siarkan ke WebSocket
     await ws.manager.broadcast(
         make_event(
             EventType.HONEYTOKEN_TRIGGERED,
-            HoneytokenTriggered(
-                vector_type=HoneytokenVector.HTML_BEACON,
-                token_id=tel["token_id"],
-                token_filename=tel["token_filename"],
-                apparent_proxy_ip=tel["apparent_proxy_ip"],
-                real_leaked_ip=tel["real_leaked_ip"],
-                local_lan_ip=tel["local_lan_ip"],
-                geo_location=GeoLocation(**tel["geo_location"]),
-                device_fingerprint=DeviceFingerprint(**tel["device_fingerprint"]),
-            ),
+            ht_payload,
             session_id=sid,
             seq=ws.manager.next_seq(),
         )
+    )
+    await _broadcast_ledger_sync(
+        blk["block_index"], blk["action_summary"], session_id=sid
     )
     return {"status": "SYNC_ACKNOWLEDGED", "leaked_ip": leaked_ip}
 
@@ -349,39 +406,43 @@ async def satcom_keys(request: Request) -> dict:
 
     if triggered:
         session_id = tel.get("session_id", "ses-kdm03-9941a")
+        leaked_ip = tel.get("real_leaked_ip", client_ip)
         v_type = (
             HoneytokenVector.CLI_CANARY
             if "JWT" in tel.get("vector_type", "")
             else HoneytokenVector.SOURCE_BAIT
         )
 
-        forensic_chain.forensic_ledger.add_block(
+        blk = forensic_chain.forensic_ledger.add_block(
             session_id,
-            f"HONEYTOKEN_TRIGGER: Canary token accessed by {client_ip} ({tel.get('token_filename')})",
+            f"HONEYTOKEN_TRIGGER: Canary token accessed by {leaked_ip} ({tel.get('token_filename')})",
             details=tel,
         )
 
-        s = decoy.store.get(session_id)
-        if s is not None:
-            s.real_leaked_ip = client_ip
         decoy.store.set_telemetry(session_id, tel)
+
+        ht_payload = HoneytokenTriggered(
+            vector_type=v_type,
+            token_id=tel["token_id"],
+            token_filename=tel["token_filename"],
+            apparent_proxy_ip=tel["apparent_proxy_ip"],
+            real_leaked_ip=tel["real_leaked_ip"],
+            local_lan_ip=tel["local_lan_ip"],
+            geo_location=GeoLocation(**tel["geo_location"]),
+            device_fingerprint=DeviceFingerprint(**tel["device_fingerprint"]),
+        )
+        decoy.store.latest_honeytoken = ht_payload
 
         await ws.manager.broadcast(
             make_event(
                 EventType.HONEYTOKEN_TRIGGERED,
-                HoneytokenTriggered(
-                    vector_type=v_type,
-                    token_id=tel["token_id"],
-                    token_filename=tel["token_filename"],
-                    apparent_proxy_ip=tel["apparent_proxy_ip"],
-                    real_leaked_ip=tel["real_leaked_ip"],
-                    local_lan_ip=tel["local_lan_ip"],
-                    geo_location=GeoLocation(**tel["geo_location"]),
-                    device_fingerprint=DeviceFingerprint(**tel["device_fingerprint"]),
-                ),
+                ht_payload,
                 session_id=session_id,
                 seq=ws.manager.next_seq(),
             )
+        )
+        await _broadcast_ledger_sync(
+            blk["block_index"], blk["action_summary"], session_id=session_id
         )
         return {"status": "KEY_EXCHANGE_AUTHORIZED", "token_state": "ACTIVE_REGISTERED"}
 
@@ -390,15 +451,25 @@ async def satcom_keys(request: Request) -> dict:
 
 @app.post("/api/forensic/tamper-test")
 async def tamper_test(req: TamperReq) -> dict:
+    # Jika baru ada Genesis Block #0 (mis. operator langsung klik Tamper-Test),
+    # tambahkan 1 blok insiden awal agar simulasi tamper pada Blok #1 selalu konsisten.
+    if len(forensic_chain.forensic_ledger.chain) <= 1:
+        forensic_chain.forensic_ledger.add_block(
+            "ses-kdm03-9941a",
+            "INITIAL_INFILTRATION: Threat Score 95 via SQL_INJECTION_AUTH_BYPASS",
+            details={"threat_score": 95, "entry_vector": "SQL_INJECTION_AUTH_BYPASS"},
+        )
     is_valid, res = forensic_chain.forensic_ledger.simulate_tamper(req.block_index)
+    bad_idx = res["tampered_block_index"]
     await ws.manager.broadcast(
         make_event(
             EventType.FORENSIC_INTEGRITY_ALERT,
             ForensicIntegrityAlert(
-                block_index=req.block_index,
+                block_index=bad_idx if bad_idx is not None else req.block_index,
                 chain_integrity=ChainIntegrity.TAMPERED,
-                tampered_block_index=res["tampered_block_index"],
+                tampered_block_index=bad_idx,
                 action_summary="SIMULATED_TAMPER: Unauthorized modification on database log record",
+                ledger=ws.build_forensic_blocks(),
             ),
             seq=ws.manager.next_seq(),
         )
@@ -417,6 +488,7 @@ async def restore_ledger() -> dict:
                 chain_integrity=ChainIntegrity.VALID,
                 tampered_block_index=None,
                 action_summary="LEDGER_RESTORED: Snapshot cryptographic chain verified and restored",
+                ledger=ws.build_forensic_blocks(),
             ),
             seq=ws.manager.next_seq(),
         )
@@ -426,17 +498,21 @@ async def restore_ledger() -> dict:
 
 @app.get("/api/forensic/export-pdf")
 async def export_pdf(session_token: str | None = None) -> Response:
-    s = decoy.store.get(session_token) if session_token else None
+    s = decoy.store.get_or_latest(session_token)
     sess_dict = s.model_dump() if s else None
-    telemetry = decoy.store.get_telemetry(session_token) if session_token else None
+    telemetry = decoy.store.get_telemetry(s.session_id if s else session_token)
     blocks = forensic_chain.forensic_ledger.get_all_blocks()
     _, bad_idx, chain_status = forensic_chain.forensic_ledger.verify_chain()
+    mitre_rows = mitre_service.profiler.session_technique_rows(
+        s.session_id if s else session_token
+    )
     pdf_bytes = pdf_service.generate_military_dfir_pdf(
         session_data=sess_dict,
         telemetry_data=telemetry,
         ledger_blocks=blocks,
         chain_status=chain_status,
         tampered_block_index=bad_idx,
+        custom_mitre_rows=mitre_rows,
     )
     filename = f"Laporan_DFIR_PUSSIBERAD_{session_token or 'INCIDENT'}.pdf"
     return Response(
@@ -449,9 +525,16 @@ async def export_pdf(session_token: str | None = None) -> Response:
 @app.post("/api/immunity/broadcast")
 async def immunity_broadcast(req: ImmunityReq) -> dict:
     sid = req.session_token or "ses-kdm03-9941a"
-    s = decoy.store.get(sid)
-    # Pakai IP asli yang bocor dari honeytoken bila ada; fallback hanya untuk demo.
-    leaked_ip = s.real_leaked_ip if s and s.real_leaked_ip else "103.147.12.89"
+    s = decoy.store.get_or_latest(sid)
+    tel = decoy.store.get_telemetry(sid)
+    # Pakai IP asli yang bocor dari honeytoken bila ada; fallback untuk demo.
+    leaked_ip = (
+        (s.real_leaked_ip if s and s.real_leaked_ip else None)
+        or (tel.get("real_leaked_ip") if tel else None)
+        or "103.147.12.89"
+    )
+    if leaked_ip in ("127.0.0.1", "localhost", "::1"):
+        leaked_ip = "103.147.12.89"
 
     rule = GeneratedRule(
         rule_id="CAKRA-VAC-2026-004",
@@ -459,34 +542,34 @@ async def immunity_broadcast(req: ImmunityReq) -> dict:
         modsec_rule='SecRule ARGS "@detectSQLi" "id:990014,phase:2,deny,status:403,msg:\'CAKRA Immuno-Patch\'"',
     )
 
-    immune_nodes = [
-        KodamNode(
-            kodam_id=n.kodam_id,
-            name=n.name,
-            lat=n.lat,
-            lng=n.lng,
-            status=KodamStatus.IMMUNE,
-        )
-        for n in ws.DEFAULT_KODAM
-    ]
+    for n in ws.DEFAULT_KODAM:
+        decoy.store.kodam_status[n.kodam_id] = KodamStatus.IMMUNE
 
-    forensic_chain.forensic_ledger.add_block(
+    immune_nodes = ws.current_kodam_nodes()
+
+    blk = forensic_chain.forensic_ledger.add_block(
         sid,
         f"HERD_IMMUNITY_BROADCAST: 15 Kodam nodes vaccinated against {leaked_ip}",
         details=rule.model_dump(),
     )
 
+    imm_payload = ImmunityBroadcasted(
+        broadcast_active=True,
+        generated_rule=rule,
+        kodam_nodes_status=immune_nodes,
+    )
+    decoy.store.latest_immunity = imm_payload
+
     await ws.manager.broadcast(
         make_event(
             EventType.IMMUNITY_BROADCASTED,
-            ImmunityBroadcasted(
-                broadcast_active=True,
-                generated_rule=rule,
-                kodam_nodes_status=immune_nodes,
-            ),
+            imm_payload,
             session_id=sid,
             seq=ws.manager.next_seq(),
         )
+    )
+    await _broadcast_ledger_sync(
+        blk["block_index"], blk["action_summary"], session_id=sid
     )
     return {
         "status": "VACCINE_DEPLOYED",

@@ -10,6 +10,7 @@ def generate_military_dfir_pdf(
     ledger_blocks: Optional[List[Dict[str, Any]]] = None,
     chain_status: str = "VALID_IMMUTABLE",
     tampered_block_index: Optional[int] = None,
+    custom_mitre_rows: Optional[List[Any]] = None,
 ) -> bytes:
     """
     Generates an authentic, high-impact tactical Military Incident Report in PDF format.
@@ -158,15 +159,16 @@ def generate_military_dfir_pdf(
 
     # Table for Attacker Info
     y_start = 308
+    vec_label = telemetry.get("vector_type", "WEBRTC_STUN_BEACON")
     intel_rows = [
         ("Klasifikasi Ancaman", f"{actor_class} (Tingkat Keyakinan: {confidence_pct}%)", c_red),
         ("Skor Ancaman / Severity", f"{threat_score} / 100 — CRITICAL LEVEL 4 RESTRICTED", c_red),
-        ("IP Samaran (Proxy/Tor)", apparent_ip, c_black),
-        ("IP Fisik Asli (Leaked)", f"{real_ip} (TEREKSTRAK VIA WEBRTC STUN)", c_red),
-        ("Koordinat & Lokasi GPS", geo_str, c_black),
+        ("IP Samaran (Proxy/Tor)", apparent_ip[:58], c_black),
+        ("IP Fisik Asli (Leaked)", f"{real_ip} (VIA {vec_label})"[:58], c_red),
+        ("Estimasi Geolokasi IP", geo_str[:58], c_black),
         ("Hardware / GPU Renderer", gpu_str[:58], c_black),
         ("Sistem Operasi / Target", os_str[:58], c_black),
-        ("Canvas Hardware Hash", canvas_hash, c_black),
+        ("Canvas Hardware Hash", canvas_hash[:58], c_black),
     ]
 
     for label, val, val_color in intel_rows:
@@ -210,12 +212,13 @@ def generate_military_dfir_pdf(
         cur_x += w
     y_start += 16
 
-    mitre_rows = [
+    default_mitre_rows = [
         ("T1190", "Exploit Public-Facing Application", "Initial Access (IT)", "DICEGAT & DIBELOKKAN"),
         ("T0855", "Unauthorized Command Message", "Inhibit Response (OT/ICS)", "DIJEBAK DI PANEL PALSU"),
         ("T1059.004", "Unix Shell Command Execution", "Execution (Linux VFS)", "DISADAP LIVE OLEH AI"),
         ("T1552.001", "Credentials In Files (.env & Satcom)", "Credential Access", "PELACAK BUMERANG AKTIF"),
     ]
+    mitre_rows = (custom_mitre_rows[:4] if custom_mitre_rows else None) or default_mitre_rows
     for m_id, m_name, m_cat, m_stat in mitre_rows:
         cur_x = 40
         row_vals = [m_id, m_name, m_cat, m_stat]

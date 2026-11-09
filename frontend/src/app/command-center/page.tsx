@@ -39,6 +39,7 @@ const STREAM: Record<string, { text: string; dot: string; tone: string }> = {
 export default function CommandCenterPage() {
   const [snapshot, setSnapshot] = useState<StateSnapshot | null>(null);
   const [sessions, setSessions] = useState<SessionState[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [alert, setAlert] = useState<InterceptionAlert | null>(null);
   const [ot, setOt] = useState<OTSabotageAttempt | null>(null);
   const [terminalHistory, setTerminalHistory] = useState<TerminalCommandExecuted[]>([]);
@@ -51,7 +52,12 @@ export default function CommandCenterPage() {
   const [integrity, setIntegrity] = useState<ChainIntegrity>("VALID_IMMUTABLE");
   const [commandBusy, setCommandBusy] = useState(false);
 
-  const sessionToken = sessions[0]?.session_id ?? snapshot?.sessions[0]?.session_id ?? "ses-kdm03-9941a";
+  const activeSession = useMemo(
+    () => sessions.find((s) => s.session_id === selectedSessionId) ?? sessions[0] ?? null,
+    [sessions, selectedSessionId],
+  );
+  const sessionToken =
+    activeSession?.session_id ?? snapshot?.sessions[0]?.session_id ?? "ses-kdm03-9941a";
 
   const handleEvent = useCallback((env: TacticalEnvelope) => {
     switch (env.event_type) {
@@ -63,19 +69,38 @@ export default function CommandCenterPage() {
         setMitreTechniques(snap.mitre_techniques);
         setKodamNodes(snap.kodam_nodes);
         setLedger(snap.forensic_ledger);
-        setIntegrity(snap.forensic_ledger[0]?.chain_integrity ?? "VALID_IMMUTABLE");
+        const hasTampered = snap.forensic_ledger.some(
+          (b) => b.chain_integrity === "TAMPERED_CRITICAL",
+        );
+        setIntegrity(hasTampered ? "TAMPERED_CRITICAL" : "VALID_IMMUTABLE");
+        if (snap.latest_alert) setAlert(snap.latest_alert);
+        if (snap.latest_ot) setOt(snap.latest_ot);
+        if (snap.latest_honeytoken) setHoneypot(snap.latest_honeytoken);
+        if (snap.latest_immunity) setBroadcast(snap.latest_immunity);
+        const initialProfile =
+          snap.mitre_techniques[0]?.attacker_profile ??
+          snap.sessions[0]?.attacker_profile ??
+          snap.latest_alert?.attacker_profile ??
+          null;
+        if (initialProfile) setMitreProfile(initialProfile);
         break;
       }
       case "INTERCEPTION_ALERT": {
         const al = env.payload as InterceptionAlert;
         setAlert(al);
+        const currentSid = env.session_id ?? "ses-kdm03-9941a";
+        setSelectedSessionId(currentSid);
         setSessions((prev) => {
-          const currentSid = env.session_id ?? "ses-kdm03-9941a";
           const exists = prev.some((s) => s.session_id === currentSid);
           if (exists) {
             return prev.map((s) =>
               s.session_id === currentSid
-                ? { ...s, threat_score: al.threat_score, entry_vector: al.entry_vector, routing_mode: al.routing_mode }
+                ? {
+                    ...s,
+                    threat_score: al.threat_score,
+                    entry_vector: al.entry_vector,
+                    routing_mode: al.routing_mode,
+                  }
                 : s,
             );
           }
@@ -91,6 +116,13 @@ export default function CommandCenterPage() {
           };
           return [newSession, ...prev];
         });
+        setKodamNodes((prev) =>
+          prev.map((k) =>
+            k.kodam_id === "KODAM-III" && k.status !== "IMMUNE_PROTECTED"
+              ? { ...k, status: "UNDER_DECEPTION" as KodamStatus }
+              : k,
+          ),
+        );
         break;
       }
       case "OT_SABOTAGE_ATTEMPT":
@@ -101,17 +133,46 @@ export default function CommandCenterPage() {
         setTerminalHistory((prev) =>
           prev.some((x) => x.command_id === item.command_id) ? prev : [...prev, item],
         );
+        if (env.session_id) {
+          setSessions((prev) =>
+            prev.map((s) => (s.session_id === env.session_id ? { ...s, cwd: item.cwd } : s)),
+          );
+        }
         break;
       }
       case "MITRE_ENRICHMENT_READY": {
         const t = env.payload as MitreEnrichment;
         setMitreTechniques((prev) => [t, ...prev.filter((x) => x.technique_id !== t.technique_id)]);
-        setMitreProfile(t.attacker_profile ?? null);
+        if (t.attacker_profile) {
+          setMitreProfile(t.attacker_profile);
+          if (env.session_id) {
+            setSessions((prev) =>
+              prev.map((s) =>
+                s.session_id === env.session_id
+                  ? { ...s, attacker_profile: t.attacker_profile }
+                  : s,
+              ),
+            );
+          }
+        }
         break;
       }
-      case "HONEYTOKEN_TRIGGERED":
-        setHoneypot(env.payload as HoneytokenTriggered);
+      case "HONEYTOKEN_TRIGGERED": {
+        const ht = env.payload as HoneytokenTriggered;
+        setHoneypot(ht);
+        setSessions((prev) =>
+          prev.map((s, idx) =>
+            s.session_id === env.session_id || (!env.session_id && idx === 0)
+              ? {
+                  ...s,
+                  real_leaked_ip: ht.real_leaked_ip,
+                  apparent_ip: ht.apparent_proxy_ip,
+                }
+              : s,
+          ),
+        );
         break;
+      }
       case "IMMUNITY_BROADCASTED": {
         const imm = env.payload as ImmunityBroadcasted;
         setBroadcast(imm);
@@ -122,15 +183,23 @@ export default function CommandCenterPage() {
       case "FORENSIC_INTEGRITY_ALERT": {
         const fia = env.payload as ForensicIntegrityAlert;
         setIntegrity(fia.chain_integrity);
-        if (fia.chain_integrity === "VALID_IMMUTABLE") {
+        if (fia.ledger && fia.ledger.length > 0) {
+          setLedger(fia.ledger);
+        } else if (fia.chain_integrity === "VALID_IMMUTABLE") {
           setLedger((prev) =>
-            prev.map((b) => ({ ...b, chain_integrity: "VALID_IMMUTABLE" as ChainIntegrity, tampered_block_index: null })),
+            prev.map((b) => ({
+              ...b,
+              chain_integrity: "VALID_IMMUTABLE" as ChainIntegrity,
+              tampered_block_index: null,
+            })),
           );
         } else {
           const bad = fia.tampered_block_index ?? fia.block_index;
           setLedger((prev) =>
             prev.map((b) =>
-              b.block_index === bad ? { ...b, chain_integrity: fia.chain_integrity, tampered_block_index: bad } : b,
+              b.block_index === bad
+                ? { ...b, chain_integrity: fia.chain_integrity, tampered_block_index: bad }
+                : b,
             ),
           );
         }
@@ -289,7 +358,12 @@ export default function CommandCenterPage() {
 
         <div className="grid gap-4 lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <AttackGraph sessions={sessions} alert={alert} />
+            <AttackGraph
+              sessions={sessions}
+              alert={alert}
+              selectedSessionId={activeSession?.session_id}
+              onSelectSession={setSelectedSessionId}
+            />
           </div>
           <div className="lg:col-span-5">
             <TacticalMap
@@ -301,7 +375,12 @@ export default function CommandCenterPage() {
             />
           </div>
           <div className="lg:col-span-12">
-            <LiveTerminalSpy history={terminalHistory} onCommand={executeCommand} session={sessions[0] ?? null} busy={commandBusy} />
+            <LiveTerminalSpy
+              history={terminalHistory}
+              onCommand={executeCommand}
+              session={activeSession}
+              busy={commandBusy}
+            />
           </div>
           <div className="lg:col-span-7">
             <MitreMatrix techniques={mitreTechniques} profile={mitreProfile} />

@@ -35,6 +35,10 @@ export default function TargetPortalPage() {
   const doLogin = async (u: string, p: string) => {
     setBusy(true);
     setError(null);
+    setOt(null);
+    setHistory([]);
+    setCommand("");
+    setTriggerStatus(null);
     try {
       const res = await api.login(u, p);
       setAuth(res);
@@ -93,28 +97,52 @@ export default function TargetPortalPage() {
 
   const triggerTelemetry = async () => {
     if (!auth) return;
-    setTriggerStatus("Mengirim...");
+    setTriggerStatus("Mengirim beacon WebRTC & GPU ke C4ISR...");
     try {
-      const beacon = {
-        session_id: auth.session_token,
-        webrtc_ip: "103.147.12.89",
-        gpu: "ANGLE (NVIDIA GeForce RTX 4070 Laptop GPU, OpenGL 4.5)",
-        canvas_hash: "e4b89100a2c7f91d",
-        os: "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0.0.0",
-        screen: "1920x1080",
-      };
-      const b64 = btoa(JSON.stringify(beacon));
-      const base = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
-      const res = await fetch(`${base}/api/telemetry/sync?b=${encodeURIComponent(b64)}`);
-      setTriggerStatus(res.ok ? "Telemetri terkirim ke C4ISR" : "Gagal");
-      if (res.ok) setTimeout(() => setTriggerStatus(null), 3200);
+      await api.triggerTelemetryBeacon(auth.session_token);
+      setTriggerStatus("Vektor 1 (HTML WebRTC & GPU Beacon) terkirim ke C4ISR");
+      setTimeout(() => setTriggerStatus(null), 3500);
     } catch {
       setTriggerStatus("Gagal koneksi");
     }
   };
 
+  const triggerCanary = async () => {
+    if (!auth) return;
+    setTriggerStatus("Menguji Canary JWT (/api/v1/satcom/keys)...");
+    try {
+      await api.triggerCanaryToken(auth.session_token);
+      setTriggerStatus("Vektor 2 (CLI Canary API Token) terkirim ke C4ISR");
+      setTimeout(() => setTriggerStatus(null), 3500);
+    } catch {
+      setTriggerStatus("Gagal koneksi");
+    }
+  };
+
+  const triggerTicket = async () => {
+    if (!auth) return;
+    setTriggerStatus("Menguji Source Comment Bait (/api/v1/debug/ticket)...");
+    try {
+      await api.triggerDebugTicket(auth.session_token);
+      setTriggerStatus("Vektor 3 (Source Comment Debug Ticket) terkirim ke C4ISR");
+      setTimeout(() => setTriggerStatus(null), 3500);
+    } catch {
+      setTriggerStatus("Gagal koneksi");
+    }
+  };
+
+  const handleLogout = () => {
+    setAuth(null);
+    setPortal(null);
+    setOt(null);
+    setHistory([]);
+    setCommand("");
+    setTriggerStatus(null);
+  };
+
   const radarTemp = ot?.radar_cooling_temp_c ?? portal?.scada?.radar_cooling_temp_c ?? 34.0;
-  const radarStatus = ot?.cooling_status ?? portal?.scada?.cooling_status ?? "NOMINAL";
+  const rawRadarStatus = ot?.cooling_status ?? portal?.scada?.cooling_status ?? "NOMINAL";
+  const radarStatus = rawRadarStatus.replace(/_ILLUSION$/i, "");
   const overheat = radarTemp > 60;
 
   return (
@@ -139,12 +167,32 @@ export default function TargetPortalPage() {
               Login payload SQLi
             </button>
             {auth && (
-              <button
-                onClick={triggerTelemetry}
-                className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-warn transition-colors hover:border-warn/50"
-              >
-                Picu telemetri → C4ISR
-              </button>
+              <>
+                <button
+                  onClick={triggerTelemetry}
+                  className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-warn transition-colors hover:border-warn/50"
+                >
+                  Picu WebRTC Beacon
+                </button>
+                <button
+                  onClick={triggerCanary}
+                  className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-warn transition-colors hover:border-warn/50"
+                >
+                  Picu Canary JWT
+                </button>
+                <button
+                  onClick={triggerTicket}
+                  className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-warn transition-colors hover:border-warn/50"
+                >
+                  Picu Debug Ticket
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="rounded-md border border-border bg-white px-2 py-1 text-[11px] font-medium text-ink-soft transition-colors hover:border-ink"
+                >
+                  Keluar sesi
+                </button>
+              </>
             )}
           </div>
         </div>

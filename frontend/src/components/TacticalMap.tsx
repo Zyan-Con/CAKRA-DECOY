@@ -127,6 +127,48 @@ export default function TacticalMap({
         </div>
       </div>
 
+      {honeytoken && (
+        <div className="mt-3 rounded-xl border border-danger/25 bg-danger-weak/50 p-3 font-mono text-[10px]">
+          <div className="flex items-center justify-between gap-2 text-danger">
+            <span className="flex items-center gap-1.5 font-semibold uppercase tracking-wider">
+              <Icon name="fingerprint" className="h-3.5 w-3.5" />
+              Atribusi Counter-Intel · {honeytoken.vector_type}
+            </span>
+            <span className="truncate rounded border border-danger/25 bg-white px-1.5 py-0.5 text-[9px]">
+              {honeytoken.token_filename}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 text-ink-soft">
+            <div className="rounded-md border border-border bg-white px-2 py-1">
+              <span className="block text-[9px] text-ink-mute">PROXY → REAL ISP IP</span>
+              <span className="font-semibold text-ink">{honeytoken.apparent_proxy_ip}</span>{" "}
+              <span className="text-ink-mute">→</span>{" "}
+              <span className="font-bold text-danger">{honeytoken.real_leaked_ip}</span>
+              {honeytoken.local_lan_ip && (
+                <span className="ml-1 text-[9px] text-ink-mute">(LAN {honeytoken.local_lan_ip})</span>
+              )}
+            </div>
+            <div className="rounded-md border border-border bg-white px-2 py-1">
+              <span className="block text-[9px] text-ink-mute">ESTIMASI GEOLOKASI IP</span>
+              <span className="font-semibold text-ink">
+                {honeytoken.geo_location.city} ({honeytoken.geo_location.lat.toFixed(2)},{" "}
+                {honeytoken.geo_location.lng.toFixed(2)})
+              </span>{" "}
+              <span className="text-[9px] text-ink-mute">
+                ±{Math.max(1, Math.round(honeytoken.geo_location.accuracy_radius_m / 1000))} km
+              </span>
+            </div>
+            {honeytoken.device_fingerprint && (
+              <div className="col-span-2 rounded-md border border-border bg-white px-2 py-1">
+                <span className="block text-[9px] text-ink-mute">HARDWARE &amp; CANVAS FINGERPRINT</span>
+                <span className="text-ink">{honeytoken.device_fingerprint.gpu_renderer}</span>
+                <span className="text-ink-mute"> · Hash {honeytoken.device_fingerprint.canvas_hash}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 rounded-xl border border-border bg-surface-2 p-3.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">

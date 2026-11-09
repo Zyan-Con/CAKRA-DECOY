@@ -45,7 +45,14 @@ _VFS: dict[str, tuple] = {
     ),
     "/etc/passwd": (
         "file",
-        "root:x:0:0:root:/root:/bin/bash\nubuntu:x:1000:1000::/home/ubuntu:/bin/bash\n",
+        "root:x:0:0:root:/root:/bin/bash\n"
+        "sshd:x:106:65534::/run/sshd:/usr/sbin/nologin\n"
+        "ubuntu:x:1000:1000:Operator Logistik Kodam:/home/ubuntu:/bin/bash\n",
+    ),
+    "/etc/shadow": (
+        "file",
+        "root:$6$k9mP2xR1$8vN3qL5wZ0pY7jH2cM4bF6dG1sT9uV0aX2eI4oP6rQ8yW1:19650:0:99999:7:::\n"
+        "ubuntu:$6$saltslw03$4hJ8kL2mN9pQ1rS5tU7vW0xY3zA6bC8dE1fG4hI7jK0lM2:19650:0:99999:7:::\n",
     ),
 }
 
@@ -53,12 +60,87 @@ DEFAULT_CWD = "/opt/satcom"
 _PROMPT_HOST = "ubuntu@srv-kodam-logistik-01"
 
 # Perintah yang dijawab LLM di tier-2 (sekarang fallback statis).
-_LLM_COMMANDS = {"ps", "netstat", "ss", "find", "iptables", "crontab", "top"}
+_LLM_COMMANDS = {
+    "ps",
+    "netstat",
+    "ss",
+    "find",
+    "iptables",
+    "crontab",
+    "top",
+    "ip",
+    "ifconfig",
+    "df",
+    "free",
+    "uptime",
+    "sudo",
+}
 # Fallback statis sampai LLM nyambung.
 _LLM_FALLBACK: dict[str, str] = {
-    "ps": "  PID TTY          TIME CMD\n 1842 ?        00:00:01 satcom-agent\n 1999 pts/0    00:00:00 bash",
-    "netstat": "Active Internet connections\ntcp  0  0 0.0.0.0:8000  0.0.0.0:*  LISTEN",
-    "ss": "State  Recv-Q  Send-Q  Local Address:Port\nLISTEN 0  128  0.0.0.0:8000",
+    "ps": (
+        "USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n"
+        "root           1  0.0  0.1 166308 11420 ?        Ss   06:00   0:02 /sbin/init\n"
+        "root         842  0.2  0.8 724100 64120 ?        Ssl  06:01   0:19 /usr/sbin/satcom-relay-daemon --config /opt/satcom/kredensial_komando.env\n"
+        "root         914  0.1  0.4 412800 32100 ?        Sl   06:01   0:08 /opt/scada/plc-modbus-bridge --port 502\n"
+        "ubuntu      1999  0.0  0.1  10240  5120 pts/0    Ss   08:14   0:00 -bash"
+    ),
+    "netstat": (
+        "Active Internet connections (only servers)\n"
+        "Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name\n"
+        "tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      612/sshd\n"
+        "tcp        0      0 10.24.18.92:502         0.0.0.0:*               LISTEN      914/plc-modbus-brid\n"
+        "tcp        0      0 0.0.0.0:8000            0.0.0.0:*               LISTEN      842/satcom-relay-da"
+    ),
+    "ss": (
+        "Netid  State   Recv-Q  Send-Q   Local Address:Port   Peer Address:Port  Process\n"
+        "tcp    LISTEN  0       128      0.0.0.0:22           0.0.0.0:*          users:((\"sshd\",pid=612,fd=3))\n"
+        "tcp    LISTEN  0       64       10.24.18.92:502      0.0.0.0:*          users:((\"plc-modbus-brid\",pid=914,fd=5))\n"
+        "tcp    LISTEN  0       128      0.0.0.0:8000         0.0.0.0:*          users:((\"satcom-relay-da\",pid=842,fd=7))"
+    ),
+    "find": (
+        "/opt/satcom\n"
+        "/opt/satcom/Akses_Darurat_Satelit_TNI.html\n"
+        "/opt/satcom/kredensial_komando.env\n"
+        "/opt/scada\n"
+        "/opt/scada/radar_cooling.conf"
+    ),
+    "iptables": (
+        "Chain INPUT (policy ACCEPT)\n"
+        "target     prot opt source               destination\n"
+        "ACCEPT     all  --  10.24.0.0/16         0.0.0.0/0            /* KODAM-SLW INTERNAL */\n"
+        "Chain FORWARD (policy DROP)\n"
+        "Chain OUTPUT (policy ACCEPT)"
+    ),
+    "crontab": "*/5 * * * * /usr/sbin/satcom-relay-daemon --heartbeat >> /var/log/satcom.log 2>&1",
+    "top": (
+        "top - 08:42:11 up 14 days,  2:41,  1 user,  load average: 0.12, 0.08, 0.05\n"
+        "Tasks:  94 total,   1 running,  93 sleeping,   0 stopped,   0 zombie\n"
+        "%Cpu(s):  1.4 us,  0.6 sy,  0.0 ni, 97.8 id,  0.2 wa,  0.0 hi,  0.0 si\n"
+        "MiB Mem :   7964.0 total,   4812.4 free,   1204.2 used,   1947.4 buff/cache"
+    ),
+    "ip": (
+        "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 state UNKNOWN\n"
+        "    inet 127.0.0.1/8 scope host lo\n"
+        "2: eth0.400: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP\n"
+        "    inet 10.24.18.92/24 brd 10.24.18.255 scope global eth0.400"
+    ),
+    "ifconfig": (
+        "eth0.400: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n"
+        "        inet 10.24.18.92  netmask 255.255.255.0  broadcast 10.24.18.255\n"
+        "        ether 02:42:0a:18:12:5c  txqueuelen 1000  (Ethernet)"
+    ),
+    "df": (
+        "Filesystem      Size  Used Avail Use% Mounted on\n"
+        "/dev/sda1        80G   24G   52G  32% /\n"
+        "tmpfs           3.9G  1.2M  3.9G   1% /run"
+    ),
+    "free": (
+        "               total        used        free      shared  buff/cache   available\n"
+        "Mem:            7964        1204        4812          24        1947        6420\n"
+        "Swap:           2047           0        2047"
+    ),
+    "uptime": " 08:42:19 up 14 days,  2:41,  1 user,  load average: 0.12, 0.08, 0.05",
+    "sudo": "sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper",
 }
 
 
@@ -186,10 +268,24 @@ def _dispatch(
         )
 
     if cmd == "ls":
+        flags = "".join(a[1:] for a in args if a.startswith("-"))
         targets = [a for a in args if not a.startswith("-")]
         path = _norm(targets[0], cwd) if targets else cwd
         if _is_dir(path):
-            return "  ".join(_ls(path)), cwd, ExecSource.VFS
+            entries = _ls(path)
+            if "l" in flags:
+                lines = ["total 16"]
+                if "a" in flags:
+                    lines.append("drwxr-xr-x 2 root   root   4096 Nov  9 06:00 .")
+                    lines.append("drwxr-xr-x 4 root   root   4096 Nov  9 06:00 ..")
+                for name in entries:
+                    full = f"{'' if path == '/' else path}/{name}"
+                    is_d = _is_dir(full)
+                    perm = "drwxr-xr-x" if is_d else ("-rw-------" if name.endswith(".env") else "-rw-r--r--")
+                    size = 4096 if is_d else (892 if name.endswith(".env") else 4210)
+                    lines.append(f"{perm} 1 ubuntu ubuntu {size:4d} Nov  9 06:12 {name}")
+                return "\n".join(lines), cwd, ExecSource.VFS
+            return "  ".join(entries), cwd, ExecSource.VFS
         if _is_file(path):
             return path.rsplit("/", 1)[-1], cwd, ExecSource.VFS
         return (
@@ -201,21 +297,24 @@ def _dispatch(
     if cmd == "cat":
         if not args:
             return "cat: missing operand", cwd, ExecSource.VFS
-        path = _norm(args[0], cwd)
+        targets = [a for a in args if not a.startswith("-")]
+        if not targets:
+            return "cat: missing operand", cwd, ExecSource.VFS
+        path = _norm(targets[0], cwd)
         if path in overrides:
             # Konten honeytoken dinamis (JWT valid + host aktual) disuntik caller.
             return overrides[path], cwd, ExecSource.VFS
         node = _VFS.get(path)
         if node is None:
-            return f"cat: {args[0]}: No such file or directory", cwd, ExecSource.VFS
+            return f"cat: {targets[0]}: No such file or directory", cwd, ExecSource.VFS
         if node[0] == "dir":
-            return f"cat: {args[0]}: Is a directory", cwd, ExecSource.VFS
+            return f"cat: {targets[0]}: Is a directory", cwd, ExecSource.VFS
         return node[1], cwd, ExecSource.VFS
 
     # Tier-2: perintah lanjutan -> (nanti) LLM, sekarang fallback statis.
     if cmd in _LLM_COMMANDS:
         return (
-            _LLM_FALLBACK.get(cmd, f"{cmd}: (output disimulasikan)"),
+            _LLM_FALLBACK.get(cmd, ""),
             cwd,
             ExecSource.FALLBACK,
         )

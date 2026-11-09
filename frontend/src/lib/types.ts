@@ -146,6 +146,7 @@ export interface ForensicIntegrityAlert {
   chain_integrity: ChainIntegrity;
   tampered_block_index?: number | null;
   action_summary: string;
+  ledger?: ForensicBlock[];
 }
 
 export interface SessionState {
@@ -167,6 +168,10 @@ export interface StateSnapshot {
   mitre_techniques: MitreEnrichment[];
   kodam_nodes: KodamNode[];
   forensic_ledger: ForensicBlock[];
+  latest_alert?: InterceptionAlert | null;
+  latest_ot?: OTSabotageAttempt | null;
+  latest_honeytoken?: HoneytokenTriggered | null;
+  latest_immunity?: ImmunityBroadcasted | null;
 }
 
 /** Envelope WebSocket flat (sama dengan backend/schemas.py Envelope). */

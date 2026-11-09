@@ -115,8 +115,44 @@ DEFAULT_KODAM = [
 _DEMO_SESSION = "ses-kdm03-9941a"
 
 
+def current_kodam_nodes() -> list[KodamNode]:
+    """Kembalikan 15 node Kodam dengan status terkini dari SessionStore."""
+    overrides = decoy.store.kodam_status
+    return [
+        k.model_copy(update={"status": overrides[k.kodam_id]})
+        if k.kodam_id in overrides
+        else k
+        for k in DEFAULT_KODAM
+    ]
+
+
+def build_forensic_blocks() -> list[ForensicBlock]:
+    """Bangun daftar ForensicBlock lengkap beserta status integritas rantai aktual."""
+    import forensic_chain
+
+    is_valid, bad_idx, _ = forensic_chain.forensic_ledger.verify_chain()
+    blocks: list[ForensicBlock] = []
+    for b in forensic_chain.forensic_ledger.get_all_blocks():
+        idx = b["block_index"]
+        is_bad = (not is_valid) and (bad_idx is not None and idx == bad_idx)
+        blocks.append(
+            ForensicBlock(
+                block_index=idx,
+                timestamp=b["timestamp"],
+                action_summary=b["action_summary"],
+                previous_hash=b["previous_hash"],
+                current_hash=b["current_hash"],
+                chain_integrity=ChainIntegrity.TAMPERED if is_bad else ChainIntegrity.VALID,
+                tampered_block_index=bad_idx if is_bad else None,
+            )
+        )
+    return blocks
+
+
 def build_snapshot() -> StateSnapshot:
-    """Snapshot awal: sesi real dari store. Kalau kosong & mode demo, pakai 1 sesi contoh."""
+    """Snapshot awal: seluruh state aktif agar frontend 100% tahan refresh F5."""
+    import mitre_service
+
     sessions: list[SessionState] = list(decoy.store.all_active())
     if not sessions and os.getenv("DEMO_EMITTER", "0") == "1":
         sessions.append(
@@ -132,19 +168,17 @@ def build_snapshot() -> StateSnapshot:
                 apparent_ip="185.220.101.44",
             )
         )
-    import forensic_chain
-
-    blocks = [
-        ForensicBlock(
-            block_index=b["block_index"],
-            timestamp=b["timestamp"],
-            action_summary=b["action_summary"],
-            previous_hash=b["previous_hash"],
-            current_hash=b["current_hash"],
-        )
-        for b in forensic_chain.forensic_ledger.get_all_blocks()
-    ]
-    return StateSnapshot(kodam_nodes=DEFAULT_KODAM, sessions=sessions, forensic_ledger=blocks)
+    return StateSnapshot(
+        kodam_nodes=current_kodam_nodes(),
+        sessions=sessions,
+        terminal_history=list(decoy.store.terminal_history),
+        mitre_techniques=mitre_service.profiler.recent_enrichments(),
+        forensic_ledger=build_forensic_blocks(),
+        latest_alert=decoy.store.latest_alert,
+        latest_ot=decoy.store.latest_ot,
+        latest_honeytoken=decoy.store.latest_honeytoken,
+        latest_immunity=decoy.store.latest_immunity,
+    )
 
 
 @router.websocket("/ws/command-stream")

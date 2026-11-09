@@ -6,6 +6,8 @@ import type { InterceptionAlert, SessionState } from "@/lib/types";
 interface AttackGraphProps {
   sessions: SessionState[];
   alert: InterceptionAlert | null;
+  selectedSessionId?: string;
+  onSelectSession?: (sessionId: string) => void;
 }
 
 function Node({
@@ -37,9 +39,19 @@ function Node({
   );
 }
 
-export default function AttackGraph({ sessions, alert }: AttackGraphProps) {
-  const decoy = (alert?.routing_mode ?? "DECOY_MIRROR_TWIN") === "DECOY_MIRROR_TWIN";
-  const threatScore = alert?.threat_score ?? sessions[0]?.threat_score ?? 0;
+export default function AttackGraph({
+  sessions,
+  alert,
+  selectedSessionId,
+  onSelectSession,
+}: AttackGraphProps) {
+  const activeSession = sessions.find((s) => s.session_id === selectedSessionId) ?? sessions[0];
+  const decoy = alert
+    ? alert.routing_mode === "DECOY_MIRROR_TWIN"
+    : activeSession
+      ? activeSession.routing_mode === "DECOY_MIRROR_TWIN"
+      : false;
+  const threatScore = alert?.threat_score ?? activeSession?.threat_score ?? 0;
   const latency = alert?.interception_latency_ms ?? 0;
 
   return (
@@ -90,7 +102,7 @@ export default function AttackGraph({ sessions, alert }: AttackGraphProps) {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-2.5 py-1.5 font-mono text-[11px]">
             <span className="text-ink-mute">VECTOR</span>
-            <span className="truncate pl-2 text-ink">{alert?.entry_vector ?? sessions[0]?.entry_vector ?? "·"}</span>
+            <span className="truncate pl-2 text-ink">{alert?.entry_vector ?? activeSession?.entry_vector ?? "·"}</span>
           </div>
           <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-2.5 py-1.5 font-mono text-[11px]">
             <span className="text-ink-mute">LATENCY</span>
@@ -111,25 +123,33 @@ export default function AttackGraph({ sessions, alert }: AttackGraphProps) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {sessions.map((s) => (
-              <li
-                key={s.session_id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 font-mono text-[11px]"
-              >
-                <span className={`dot ${s.threat_score >= 70 ? "dot-danger" : "dot-warn"}`} />
-                <span className="truncate text-ink">{s.session_id}</span>
-                <span className="ml-auto text-ink-mute">{s.entry_vector}</span>
-                <span className={s.threat_score >= 70 ? "font-semibold text-danger" : "font-semibold text-warn"}>
-                  {s.threat_score}
-                </span>
-                {s.real_leaked_ip && (
-                  <span className="hidden items-center gap-1 text-accent sm:flex">
-                    <Icon name="fingerprint" className="h-3 w-3" />
-                    {s.real_leaked_ip}
+            {sessions.map((s) => {
+              const isSelected = s.session_id === (selectedSessionId ?? sessions[0]?.session_id);
+              return (
+                <li
+                  key={s.session_id}
+                  onClick={() => onSelectSession?.(s.session_id)}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 font-mono text-[11px] transition-colors ${
+                    isSelected
+                      ? "border-accent-line bg-accent-weak/60"
+                      : "border-border bg-surface hover:border-accent-line/60"
+                  }`}
+                >
+                  <span className={`dot ${s.threat_score >= 70 ? "dot-danger" : "dot-warn"}`} />
+                  <span className="truncate font-medium text-ink">{s.session_id}</span>
+                  <span className="ml-auto text-ink-mute">{s.entry_vector}</span>
+                  <span className={s.threat_score >= 70 ? "font-semibold text-danger" : "font-semibold text-warn"}>
+                    {s.threat_score}
                   </span>
-                )}
-              </li>
-            ))}
+                  {s.real_leaked_ip && (
+                    <span className="hidden items-center gap-1 rounded bg-danger-weak px-1.5 py-0.5 text-[10px] font-semibold text-danger sm:flex">
+                      <Icon name="fingerprint" className="h-3 w-3" />
+                      {s.real_leaked_ip}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

@@ -124,6 +124,7 @@ class ForensicBlock(BaseModel):
     previous_hash: str
     current_hash: str
     chain_integrity: ChainIntegrity = ChainIntegrity.VALID
+    tampered_block_index: Optional[int] = None
 
 
 class GeneratedRule(BaseModel):
@@ -194,6 +195,7 @@ class ForensicIntegrityAlert(BaseModel):
     chain_integrity: ChainIntegrity
     tampered_block_index: Optional[int] = None
     action_summary: str
+    ledger: Optional[list[ForensicBlock]] = None
 
 
 class SessionState(BaseModel):
@@ -219,6 +221,10 @@ class StateSnapshot(BaseModel):
     mitre_techniques: list[MitreEnrichment] = Field(default_factory=list)
     kodam_nodes: list[KodamNode] = Field(default_factory=list)
     forensic_ledger: list[ForensicBlock] = Field(default_factory=list)
+    latest_alert: Optional[InterceptionAlert] = None
+    latest_ot: Optional[OTSabotageAttempt] = None
+    latest_honeytoken: Optional[HoneytokenTriggered] = None
+    latest_immunity: Optional[ImmunityBroadcasted] = None
 
 
 # ---------- Envelope pembungkus ----------

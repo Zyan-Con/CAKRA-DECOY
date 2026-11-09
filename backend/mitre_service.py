@@ -107,6 +107,27 @@ class MitreProfiler:
 
     def __init__(self) -> None:
         self._by_session: dict[str, list[str]] = {}
+        self._enrichments: list[MitreEnrichment] = []
+
+    def recent_enrichments(self) -> list[MitreEnrichment]:
+        """Daftar enrichment terbaru (unik per technique_id, terbaru di depan)."""
+        return list(self._enrichments)
+
+    def session_technique_rows(self, session_id: str | None = None) -> list[tuple[str, str, str, str]]:
+        """Kembalikan baris (tid, name, tactic, status) untuk laporan DFIR PDF."""
+        tids: list[str] = []
+        if session_id and session_id in self._by_session:
+            tids = list(self._by_session[session_id])
+        elif self._by_session:
+            # Ambil dari sesi terakhir jika session_id spesifik belum terisi
+            last_sid = next(reversed(self._by_session))
+            tids = list(self._by_session[last_sid])
+        rows: list[tuple[str, str, str, str]] = []
+        for tid in tids:
+            if tid in _TECHNIQUES:
+                tactic_id, tactic_name, tech_name, _ = _TECHNIQUES[tid]
+                rows.append((tid, tech_name, f"{tactic_id} ({tactic_name})", "DICEGAT & DIANALISIS"))
+        return rows
 
     def _classify(self, techniques: list[str]) -> AttackerProfile:
         has_ics = any(t.startswith("T0") for t in techniques)
@@ -161,7 +182,7 @@ class MitreProfiler:
         if tid not in cumulative:
             cumulative.append(tid)
 
-        return MitreEnrichment(
+        enrichment = MitreEnrichment(
             tactic_id=tactic_id,
             tactic_name=tactic_name,
             technique_id=tid,
@@ -170,6 +191,11 @@ class MitreProfiler:
             cumulative_techniques=list(cumulative),
             attacker_profile=self._classify(cumulative),
         )
+        self._enrichments = [
+            enrichment,
+            *[x for x in self._enrichments if x.technique_id != tid],
+        ]
+        return enrichment
 
 
 # Singleton dipakai main.py.
