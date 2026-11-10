@@ -10,6 +10,15 @@
 */
 
 @layer base {
+  :root {
+    /* Font lokal/fallback sistem (tanpa fetch Google Fonts saat build/runtime). */
+    --font-ui: "Inter Tight", "Inter", ui-sans-serif, system-ui, -apple-system,
+      "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    --font-data: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+      Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-gov: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  }
   html,
   body {
     min-height: 100%;

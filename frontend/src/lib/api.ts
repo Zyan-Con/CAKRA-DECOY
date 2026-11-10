@@ -1,6 +1,14 @@
 import type { ChainIntegrity } from "@/lib/types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+// Production (browser): same-origin lewat reverse proxy Caddy pada path /api.
+// Development (browser): backend lokal langsung di localhost:8000.
+// SSR/server: izinkan override eksplisit bila disediakan.
+const BASE_URL = (() => {
+  if (typeof window !== "undefined") {
+    return process.env.NODE_ENV === "production" ? "" : "http://localhost:8000";
+  }
+  return process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+})();
 
 export class ApiError extends Error {
   constructor(message: string) {

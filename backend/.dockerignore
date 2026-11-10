@@ -2,5 +2,17 @@
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
 .env
+.env.*
+!.env.example
+.git
+.gitignore
 tests/
+*.md
+Dockerfile
+.dockerignore
+.vscode
+*.log

@@ -1,14 +1,23 @@
-# Backend CAKRA-DECOY 2.0 — FastAPI. Jalan di ARM64 maupun x86.
-FROM python:3.11-slim-bookworm
+# syntax=docker/dockerfile:1
+
+FROM python:3.10-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install deps dulu (layer cache) lalu kode.
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install runtime dependencies from pinned requirements
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --timeout=300 --retries=10 -r requirements.txt
 
+# Copy application source (secrets excluded via .dockerignore)
 COPY . .
 
+# Non-root user for runtime
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
-# DEMO_EMITTER di-set lewat compose/.env, bukan di-hardcode di sini.
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
