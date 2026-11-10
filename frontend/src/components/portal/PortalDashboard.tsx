@@ -133,16 +133,25 @@ export function PortalDashboard({
               <p className="text-xs text-gov-soft">
                 Konfigurasi relay SATCOM (bearer token)
               </p>
-              <a
-                href={api.honeytokenDownloadUrl(
-                  "kredensial_komando.env",
-                  token,
-                )}
-                download="kredensial_komando.env"
-                className="mt-2 inline-block text-sm font-medium text-gov-brand underline"
-              >
-                Unduh konfigurasi
-              </a>
+              {baitMode === "sample" && locked.bait ? (
+                <>
+                  <span className="mt-2 inline-block text-sm font-medium text-gov-soft">
+                    Unduh konfigurasi
+                  </span>
+                  <p className="mt-1 text-xs text-gov-soft">{locked.bait}</p>
+                </>
+              ) : (
+                // Tab baru: di dev (lintas origin) atribut download diabaikan, jangan sampai halaman demo hilang.
+                <a
+                  href={api.honeytokenDownloadUrl("kredensial_komando.env", token)}
+                  download="kredensial_komando.env"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-block text-sm font-medium text-gov-brand underline"
+                >
+                  Unduh konfigurasi
+                </a>
+              )}
             </li>
           </ul>
         </section>

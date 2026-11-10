@@ -13,6 +13,8 @@ export interface GuideClosingProps {
   onRestore(): void;
   onExportPdf(): void;
   onRestart(): void;
+  /** Pesan gagal aksi ledger (tamper/restore), ditampilkan di bawah ledger. */
+  notice?: string | null;
 }
 
 export function GuideClosing({
@@ -21,6 +23,7 @@ export function GuideClosing({
   onRestore,
   onExportPdf,
   onRestart,
+  notice,
 }: GuideClosingProps) {
   return (
     <div className="space-y-4">
@@ -51,6 +54,11 @@ export function GuideClosing({
         onRestore={onRestore}
         onExportPdf={onExportPdf}
       />
+      {notice && (
+        <p role="alert" className="rounded-sm border border-hostile/60 px-4 py-3 text-sm text-hostile">
+          {notice}
+        </p>
+      )}
       <p className="text-sm text-ink-soft">
         Coba <strong className="text-ink">Uji manipulasi</strong>: sistem
         langsung menemukan blok bukti yang diubah, lalu{" "}

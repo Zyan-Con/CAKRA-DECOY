@@ -18,6 +18,7 @@ import type { PanelFocus } from "@/components/ui/Panel";
 import { api } from "@/lib/api";
 import { SQLI_CREDENTIALS, type CommandPanelId, type PortalControl } from "@/lib/attack-steps";
 import { ownTamperTarget, type TacticalState } from "@/lib/tactical-state";
+import { useAction } from "@/lib/useAction";
 import { useGuide } from "@/lib/useGuide";
 import { usePortalSession } from "@/lib/usePortalSession";
 import { useTacticalState } from "@/lib/useTacticalState";
@@ -76,6 +77,7 @@ export default function DemoPage() {
   const { state, status, log } = useTacticalState({ sessionId });
   const guide = useGuide(portal, log);
   const live = status === "live";
+  const { notice, act } = useAction();
   const step = guide.step;
   const active = step?.panels ?? [];
 
@@ -152,11 +154,12 @@ export default function DemoPage() {
             <GuideClosing
               state={state}
               onTamper={() =>
-                void api
-                  .tamperTest(ownTamperTarget(state.ledger, sessionId) ?? 1)
-                  .catch(ignore)
+                void act("Uji manipulasi", () =>
+                  api.tamperTest(ownTamperTarget(state.ledger, sessionId) ?? 1),
+                )
               }
-              onRestore={() => void api.restoreLedger().catch(ignore)}
+              onRestore={() => void act("Pulihkan rantai", api.restoreLedger)}
+              notice={notice}
               onExportPdf={() =>
                 window.open(api.exportPdfUrl(sessionId ?? undefined), "_blank")
               }

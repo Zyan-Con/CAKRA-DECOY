@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertPanel } from "@/components/command/AlertPanel";
 import { AttackFlowPanel } from "@/components/command/AttackFlowPanel";
 import { AutopilotToggle } from "@/components/command/AutopilotToggle";
@@ -13,33 +13,24 @@ import { RadarPanel } from "@/components/command/RadarPanel";
 import { TerminalSpyPanel } from "@/components/command/TerminalSpyPanel";
 import { StreamBadge } from "@/components/command/StreamBadge";
 import { api } from "@/lib/api";
-import { SAMPLE_LEAKED_IP, ownTamperTarget } from "@/lib/tactical-state";
+import { SAMPLE_LEAKED_IP, deriveTactical, ownTamperTarget } from "@/lib/tactical-state";
+import { useAction } from "@/lib/useAction";
 import { useAutopilot } from "@/lib/useAutopilot";
 import { useTacticalState } from "@/lib/useTacticalState";
 
 export default function CommandCenterPage() {
-  const { state, status } = useTacticalState(undefined);
+  const { state, status, log } = useTacticalState(undefined);
   const autopilot = useAutopilot();
   const [picked, setPicked] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { busy, notice, act } = useAction();
 
-  const active =
-    picked ?? autopilot.progress?.sessionId ?? state.latestSessionId;
-
-  const act = useCallback(async (label: string, fn: () => Promise<unknown>) => {
-    setBusy(true);
-    setNotice(null);
-    try {
-      await fn();
-    } catch (err) {
-      setNotice(
-        `${label} gagal: ${err instanceof Error ? err.message : "backend tidak merespons"}`,
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const active = picked ?? autopilot.progress?.sessionId ?? state.latestSessionId;
+  // Sesi yang dipilih: panel ikut menampilkan data sesi itu saja. Daftar sesi tetap global.
+  const view = useMemo(() => (picked ? deriveTactical(log, { sessionId: picked }) : state), [picked, log, state]);
+  const toggleAutopilot = (v: boolean) => {
+    setPicked(null);
+    autopilot.setEnabled(v);
+  };
 
   return (
     <main className="min-h-screen bg-bg">
@@ -56,7 +47,7 @@ export default function CommandCenterPage() {
           <StreamBadge status={status} />
           <AutopilotToggle
             enabled={autopilot.enabled}
-            onChange={autopilot.setEnabled}
+            onChange={toggleAutopilot}
             progress={autopilot.progress}
             error={autopilot.error}
           />
@@ -96,19 +87,31 @@ export default function CommandCenterPage() {
           </p>
         )}
 
+        {picked && (
+          <p className="flex flex-wrap items-center gap-3 rounded-sm border border-signal/60 bg-panel px-4 py-3 text-sm text-ink-soft">
+            Menampilkan sesi <span className="font-data text-ink">{picked}</span> saja.
+            <button
+              type="button"
+              onClick={() => setPicked(null)}
+              className="font-semibold text-signal underline-offset-4 hover:underline"
+            >
+              Tampilkan semua sesi
+            </button>
+          </p>
+        )}
         <div className="grid gap-4 lg:grid-cols-2">
-          <AlertPanel state={state} />
-          <RadarPanel state={state} />
+          <AlertPanel state={view} />
+          <RadarPanel state={view} />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
           <AttackFlowPanel
             state={state}
             selectedSessionId={active}
-            onSelectSession={setPicked}
+            onSelectSession={(id) => setPicked((cur) => (cur === id ? null : id))}
           />
           <TerminalSpyPanel
-            state={state}
+            state={view}
             onCommand={
               active
                 ? (raw) =>
@@ -119,7 +122,7 @@ export default function CommandCenterPage() {
             }
           />
           <KodamMap
-            state={state}
+            state={view}
             busy={busy}
             onBroadcast={
               active
@@ -134,15 +137,15 @@ export default function CommandCenterPage() {
         </h2>
         <div className="grid gap-4 lg:grid-cols-3">
           <IdentityPanel
-            state={state}
-            sample={state.honeytoken?.real_leaked_ip === SAMPLE_LEAKED_IP}
+            state={view}
+            sample={view.honeytoken?.real_leaked_ip === SAMPLE_LEAKED_IP}
           />
-          <MitrePanel state={state} />
+          <MitrePanel state={view} />
           <LedgerPanel
-            state={state}
+            state={view}
             onTamper={() =>
               void act("Uji manipulasi", () =>
-                api.tamperTest(ownTamperTarget(state.ledger, active) ?? 1),
+                api.tamperTest(ownTamperTarget(view.ledger, active) ?? 1),
               )
             }
             onRestore={() => void act("Pulihkan rantai", api.restoreLedger)}

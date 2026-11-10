@@ -40,6 +40,7 @@ from schemas import (
     HoneytokenVector,
     ImmunityBroadcasted,
     InterceptionAlert,
+    KodamNode,
     KodamStatus,
     OTSabotageAttempt,
     RoutingMode,
@@ -128,9 +129,7 @@ async def _broadcast_ledger_sync(
             EventType.FORENSIC_INTEGRITY_ALERT,
             ForensicIntegrityAlert(
                 block_index=block_index,
-                chain_integrity=ChainIntegrity.VALID
-                if is_valid
-                else ChainIntegrity.TAMPERED,
+                chain_integrity=ChainIntegrity.VALID if is_valid else ChainIntegrity.TAMPERED,
                 tampered_block_index=bad_idx,
                 action_summary=action_summary,
                 ledger=ws.build_forensic_blocks(),

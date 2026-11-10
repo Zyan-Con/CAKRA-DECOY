@@ -32,7 +32,7 @@ export function KodamMap({ state, focus, onBroadcast, busy }: KodamMapProps) {
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
-        role="img"
+        role="group"
         aria-label="Peta status Kodam se-Indonesia"
       >
         <path
@@ -45,7 +45,14 @@ export function KodamMap({ state, focus, onBroadcast, busy }: KodamMapProps) {
           const { x, y } = projectLatLng(n.lat, n.lng, W, H);
           const st = STATUS[n.status];
           return (
-            <g key={n.kodam_id}>
+            // Fokus keyboard / hover menampilkan nama satuan; label di kanan peta rata kanan agar tak terpotong.
+            <g
+              key={n.kodam_id}
+              tabIndex={0}
+              role="img"
+              aria-label={`${n.name}: ${st.label}`}
+              className="group cursor-default outline-none"
+            >
               <circle
                 cx={x}
                 cy={y}
@@ -53,9 +60,19 @@ export function KodamMap({ state, focus, onBroadcast, busy }: KodamMapProps) {
                 fill={st.fill}
                 stroke="#07080A"
                 strokeWidth={3}
+                className="group-focus-visible:stroke-[#FFB000]"
+              />
+              <text
+                x={x}
+                y={y - 18}
+                textAnchor={x > W * 0.75 ? "end" : x < W * 0.15 ? "start" : "middle"}
+                className="pointer-events-none fill-ink font-ui text-[26px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                stroke="#07080A"
+                strokeWidth={6}
+                paintOrder="stroke"
               >
-                <title>{`${n.name} · ${st.label}`}</title>
-              </circle>
+                {n.name}
+              </text>
             </g>
           );
         })}
