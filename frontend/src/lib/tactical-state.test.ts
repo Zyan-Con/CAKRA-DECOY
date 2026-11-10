@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   LOG_CAP,
+  ownTamperTarget,
   appendLog,
   deriveTactical,
   initialTacticalState,
@@ -255,4 +256,15 @@ test("appendLog caps at LOG_CAP", () => {
   }
   expect(log).toHaveLength(LOG_CAP);
   expect(log[0]).toBe(all[1]);
+});
+
+describe("ownTamperTarget", () => {
+  test("picks the first non-genesis block of the session", () => {
+    expect(ownTamperTarget([block(0, null), block(1, "B"), block(2, "A"), block(3, "A")], "A")).toBe(2);
+  });
+
+  test("returns null when the session has no block", () => {
+    expect(ownTamperTarget([block(0, null), block(1, "B")], "A")).toBeNull();
+    expect(ownTamperTarget([block(1, "B")], null)).toBeNull();
+  });
 });

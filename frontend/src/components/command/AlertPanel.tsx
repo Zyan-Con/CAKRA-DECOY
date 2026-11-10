@@ -26,8 +26,9 @@ export function AlertPanel({
           </div>
           <div>
             <p className="text-xs text-ink-mute">Vektor serangan</p>
-            <p className="mt-1 break-all font-data text-sm text-ink">
-              {al.entry_vector}
+            <p className="mt-1 break-words font-data text-sm text-ink">
+              {/* zero-width space: boleh patah setelah "_", bukan di tengah kata */}
+              {al.entry_vector.replaceAll("_", "_​")}
             </p>
           </div>
           <div>

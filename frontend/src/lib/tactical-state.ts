@@ -289,3 +289,12 @@ export function reduceTactical(
       return s;
   }
 }
+
+/** IP yang dikirim beacon simulasi (lib/api triggerTelemetryBeacon): penanda "data contoh". */
+export const SAMPLE_LEAKED_IP = "103.147.12.89";
+
+/** Blok non-genesis pertama milik sesi: target uji manipulasi yang tidak merusak bukti juri lain. */
+export function ownTamperTarget(ledger: readonly ForensicBlock[], sessionId: string | null): number | null {
+  if (!sessionId) return null;
+  return ledger.find((b) => b.block_index > 0 && b.session_id === sessionId)?.block_index ?? null;
+}
