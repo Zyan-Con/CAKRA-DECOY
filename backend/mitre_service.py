@@ -109,6 +109,10 @@ class MitreProfiler:
         self._by_session: dict[str, list[str]] = {}
         self._enrichments: list[MitreEnrichment] = []
 
+    def clear(self) -> None:
+        """Lupakan semua teknik yang terpetakan (bersama decoy.store.clear)."""
+        self.__init__()
+
     def recent_enrichments(self) -> list[MitreEnrichment]:
         """Daftar enrichment terbaru (unik per technique_id, terbaru di depan)."""
         return list(self._enrichments)

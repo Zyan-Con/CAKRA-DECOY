@@ -513,6 +513,20 @@ async def demo_reset() -> dict:
     return {"status": "DEMO_RESET", "chain_integrity": integrity.value}
 
 
+@app.post("/api/demo/clear")
+async def demo_clear() -> dict:
+    """Bersihkan semua data demo: sesi, terminal, telemetri, MITRE, Kodam, dan ledger (kembali ke genesis)."""
+    decoy.store.clear()
+    mitre_service.profiler.clear()
+    forensic_chain.forensic_ledger.init_genesis()
+    await ws.manager.broadcast(
+        make_event(
+            EventType.INITIAL_STATE_SYNC, ws.build_snapshot(), seq=ws.manager.next_seq()
+        )
+    )
+    return {"status": "DEMO_CLEARED"}
+
+
 @app.get("/api/forensic/export-pdf")
 async def export_pdf(session_token: str | None = None) -> Response:
     s = decoy.store.get_or_latest(session_token)

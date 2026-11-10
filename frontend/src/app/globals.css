@@ -28,6 +28,44 @@
   }
 }
 
+/* Scrollbar tipis setema. Chromium memakai ::-webkit-scrollbar (tanpa tombol panah);
+   properti standar hanya untuk browser lain, karena bila diset Chrome mengabaikan ::-webkit-scrollbar. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3f46;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #5a606b;
+}
+::-webkit-scrollbar-button,
+::-webkit-scrollbar-corner {
+  display: none;
+  background: transparent;
+}
+.font-gov ::-webkit-scrollbar-thumb {
+  background: #c3cad6;
+}
+.font-gov ::-webkit-scrollbar-thumb:hover {
+  background: #8b93a1;
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #3a3f46 transparent;
+  }
+  .font-gov,
+  .font-gov * {
+    scrollbar-color: #c3cad6 transparent;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -292,3 +292,13 @@ test("appendLog keeps the full ledger only on the newest integrity event", () =>
   expect((log[1].payload as { ledger?: unknown[] }).ledger).toHaveLength(2);
   expect(deriveTactical(log, undefined).ledger.map((b) => b.block_index)).toEqual([0, 2]);
 });
+
+test("unscoped empty snapshot (data cleared) forgets the latest session", () => {
+  const s = deriveTactical(
+    [env("INTERCEPTION_ALERT", alertPayload, "A"), env("INITIAL_STATE_SYNC", snapshot({ sessions: [] }), null)],
+    undefined,
+  );
+  expect(s.latestSessionId).toBeNull();
+  expect(s.alert).toBeNull();
+  expect(s.sessions).toEqual([]);
+});

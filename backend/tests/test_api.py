@@ -177,3 +177,19 @@ def test_demo_reset_repairs_tampered_chain():
         assert r.json()["chain_integrity"] == "VALID_IMMUTABLE"
         ledger = _snapshot(c)["forensic_ledger"]
         assert not any(b["chain_integrity"] == "TAMPERED_CRITICAL" for b in ledger)
+
+
+def test_demo_clear_wipes_sessions_and_ledger():
+    with TestClient(main.app) as c:
+        tok = _sqli_login(c)
+        c.post("/api/sys/console", json={"session_token": tok, "command": "whoami"})
+        c.post("/api/immunity/broadcast", json={"session_token": tok})
+        r = c.post("/api/demo/clear")
+        assert r.status_code == 200 and r.json()["status"] == "DEMO_CLEARED"
+        snap = _snapshot(c)
+        assert snap["sessions"] == []
+        assert snap["terminal_history"] == []
+        assert snap["mitre_techniques"] == []
+        assert [b["block_index"] for b in snap["forensic_ledger"]] == [0]
+        assert snap["latest_alert"] is None and snap["latest_immunity"] is None
+        assert all(k["status"] == "STANDBY" for k in snap["kodam_nodes"])

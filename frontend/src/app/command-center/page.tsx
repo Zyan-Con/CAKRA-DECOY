@@ -12,6 +12,8 @@ import { MitrePanel } from "@/components/command/MitrePanel";
 import { RadarPanel } from "@/components/command/RadarPanel";
 import { TerminalSpyPanel } from "@/components/command/TerminalSpyPanel";
 import { StreamBadge } from "@/components/command/StreamBadge";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { api } from "@/lib/api";
 import { SAMPLE_LEAKED_IP, deriveTactical, ownTamperTarget } from "@/lib/tactical-state";
 import { useAction } from "@/lib/useAction";
@@ -30,6 +32,16 @@ export default function CommandCenterPage() {
   const toggleAutopilot = (v: boolean) => {
     setPicked(null);
     autopilot.setEnabled(v);
+  };
+  const clearData = () => {
+    // Global & tak bisa dibatalkan: berlaku untuk semua yang sedang membuka web ini.
+    const ok = window.confirm(
+      "Hapus semua data demo di server? Sesi penyerang, riwayat terminal, MITRE, status Kodam, dan ledger (kembali ke blok genesis) akan dikosongkan untuk semua yang sedang membuka web ini.",
+    );
+    if (!ok) return;
+    autopilot.setEnabled(false);
+    setPicked(null);
+    void act("Bersihkan data", api.demoClear);
   };
 
   return (
@@ -51,6 +63,10 @@ export default function CommandCenterPage() {
             progress={autopilot.progress}
             error={autopilot.error}
           />
+          <Button variant="ghost" onClick={clearData} disabled={busy}>
+            <Icon name="trash-bin-minimalistic-bold-duotone" className="h-4 w-4" />
+            Bersihkan data
+          </Button>
           <Link
             href="/demo"
             className="flex min-h-[44px] items-center rounded-sm bg-signal px-4 text-sm font-semibold text-bg hover:brightness-110"

@@ -154,7 +154,7 @@ function applySnapshot(
       snap.sessions[0]?.attacker_profile ??
       snap.latest_alert?.attacker_profile ??
       null,
-    latestSessionId: snap.sessions[0]?.session_id ?? s.latestSessionId,
+    latestSessionId: snap.sessions[0]?.session_id ?? null,
   };
 }
 

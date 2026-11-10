@@ -144,6 +144,10 @@ export const api = {
       { method: "POST" },
     ),
 
+  /** Hapus semua data demo di server (sesi, terminal, MITRE, Kodam, ledger kembali ke genesis). */
+  demoClear: () =>
+    apiFetch<{ status: string }>("/api/demo/clear", { method: "POST" }),
+
   exportPdfUrl: (sessionToken?: string) =>
     `${BASE_URL}/api/forensic/export-pdf?session_token=${sessionToken ?? ""}`,
 

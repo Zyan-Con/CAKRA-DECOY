@@ -55,6 +55,10 @@ class SessionStore:
         self.latest_honeytoken: Optional[HoneytokenTriggered] = None
         self.latest_immunity: Optional[ImmunityBroadcasted] = None
 
+    def clear(self) -> None:
+        """Kosongkan semua sesi, telemetri, dan riwayat (tombol "Bersihkan data" demo)."""
+        self.__init__()
+
     def create(
         self,
         session_id: str,
