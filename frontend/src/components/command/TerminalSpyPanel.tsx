@@ -30,7 +30,7 @@ export function TerminalSpyPanel({
         )}
         {history.map((h) => (
           <div key={h.command_id}>
-            <p className="break-all text-safe">
+            <p className="break-words text-safe">
               {h.prompt} <span className="text-ink">{h.raw_input}</span>
             </p>
             <pre className="mt-1 whitespace-pre-wrap break-all font-data text-sm text-ink-soft">

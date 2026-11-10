@@ -13,7 +13,8 @@ export interface PanelProps {
 
 const FOCUS: Record<PanelFocus, string> = {
   active: "border-signal",
-  dim: "border-line opacity-50",
+  // Redup tanpa opacity: latar menyatu dengan halaman, kontras teks tetap ≥ 4.5:1.
+  dim: "border-line/60 !bg-bg",
   none: "border-line",
 };
 
@@ -28,7 +29,7 @@ export function Panel({
 }: PanelProps) {
   return (
     <section
-      className={`rounded-md border bg-panel p-5 transition-[opacity,border-color] duration-200 ${FOCUS[focus]} ${className}`}
+      className={`rounded-md border bg-panel p-5 transition-[background-color,border-color] duration-200 ${FOCUS[focus]} ${className}`}
     >
       {(title || eyebrow || action) && (
         <header className="mb-4 flex items-start justify-between gap-3">
