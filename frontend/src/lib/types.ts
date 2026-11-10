@@ -30,10 +30,7 @@ export type ExecutionSource =
   | "STATIC_FALLBACK";
 export type Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type ChainIntegrity = "VALID_IMMUTABLE" | "TAMPERED_CRITICAL";
-export type KodamStatus =
-  | "STANDBY"
-  | "UNDER_DECEPTION"
-  | "IMMUNE_PROTECTED";
+export type KodamStatus = "STANDBY" | "UNDER_DECEPTION" | "IMMUNE_PROTECTED";
 export type HoneytokenVector =
   | "HTML_WEBRTC_BEACON"
   | "CLI_CANARY_API_TRIGGER"
@@ -79,6 +76,8 @@ export interface ForensicBlock {
   current_hash: string;
   chain_integrity: ChainIntegrity;
   tampered_block_index?: number | null;
+  /** Pemilik blok (backend ≥ redesign); null untuk genesis/sistem. */
+  session_id?: string | null;
 }
 
 export interface GeneratedRule {
