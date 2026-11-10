@@ -47,7 +47,7 @@ export function PortalDashboard({
         </span>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))]">
         <section className={card}>
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <Icon
@@ -98,7 +98,7 @@ export function PortalDashboard({
           </h3>
           <ul className="mt-3 space-y-2 text-sm">
             <li className="rounded border border-gov-line p-3">
-              <p className="font-medium">Akses_Darurat_Satelit_TNI.html</p>
+              <p className="break-all font-medium">Akses_Darurat_Satelit_TNI.html</p>
               <p className="text-xs text-gov-soft">
                 Konsol diagnostik darurat (offline bundle)
               </p>
@@ -129,7 +129,7 @@ export function PortalDashboard({
               )}
             </li>
             <li className="rounded border border-gov-line p-3">
-              <p className="font-medium">kredensial_komando.env</p>
+              <p className="break-all font-medium">kredensial_komando.env</p>
               <p className="text-xs text-gov-soft">
                 Konfigurasi relay SATCOM (bearer token)
               </p>

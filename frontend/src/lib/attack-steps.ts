@@ -170,3 +170,16 @@ export function createApiStepContext(): StepContext & {
     },
   };
 }
+
+const CONTROLS: readonly PortalControl[] = ["login", "terminal", "radar", "bait"];
+
+/** Kontrol portal yang dikunci di /demo selama `step` aktif, beserta petunjuk langkah pembukanya. */
+export function lockedControls(step: StepDef | null): Partial<Record<PortalControl, string>> {
+  if (!step) return {};
+  const out: Partial<Record<PortalControl, string>> = {};
+  for (const control of CONTROLS) {
+    if (control === step.portalControl) continue;
+    out[control] = `Dibuka di langkah ${STEPS.findIndex((s) => s.portalControl === control) + 1}`;
+  }
+  return out;
+}

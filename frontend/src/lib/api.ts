@@ -10,10 +10,18 @@ export class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    });
+  } catch {
+    // fetch hanya reject saat jaringan/server tak terjangkau; pesan browser ("Failed to fetch") tidak jelas bagi juri.
+    throw new ApiError(
+      "Server tidak bisa dihubungi. Periksa koneksi, lalu coba lagi.",
+    );
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {

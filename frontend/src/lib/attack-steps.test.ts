@@ -4,6 +4,7 @@ import {
   STEP2_COMMAND,
   STEPS,
   findStepEvent,
+  lockedControls,
   type StepContext,
 } from "@/lib/attack-steps";
 import type { EventType, TacticalEnvelope } from "@/lib/types";
@@ -94,4 +95,14 @@ test("each step.run calls exactly its context method", async () => {
     await step.run(ctx);
     expect(calls).toEqual([expected[i]]);
   }
+});
+
+test("lockedControls leaves only the active step's control open", () => {
+  expect(lockedControls(STEPS[2])).toEqual({
+    login: "Dibuka di langkah 1",
+    terminal: "Dibuka di langkah 2",
+    bait: "Dibuka di langkah 4",
+  });
+  expect(Object.keys(lockedControls(STEPS[4]))).toHaveLength(4);
+  expect(lockedControls(null)).toEqual({});
 });
