@@ -3,9 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import type { TacticalEnvelope } from "./types";
 
-const WS_URL =
-  (process.env.NEXT_PUBLIC_BACKEND_WS_URL ??
-    "ws://localhost:8000/ws/command-stream").replace(/^http/, "ws");
+function resolveWsUrl(): string {
+  // Production (browser): ws/wss otomatis mengikuti protokol & host aktif (same-origin via Caddy).
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}/ws/command-stream`;
+  }
+
+  // Development: backend lokal langsung.
+  const explicit = process.env.NEXT_PUBLIC_BACKEND_WS_URL;
+  if (explicit) {
+    return explicit.replace(/^http/, "ws");
+  }
+
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//localhost:8000/ws/command-stream`;
+  }
+
+  return "ws://localhost:8000/ws/command-stream";
+}
 
 export type StreamStatus = "connecting" | "live" | "reconnecting" | "offline";
 
@@ -28,28 +45,42 @@ export function useTacticalStream(onEvent: (env: TacticalEnvelope) => void) {
     let attempts = 0;
 
     const connect = () => {
-      if (disposed) return;
-      const ws = new WebSocket(WS_URL);
+      if (disposed) {
+        return;
+      }
+
+      const ws = new WebSocket(resolveWsUrl());
       socket = ws;
 
       ws.onopen = () => {
         attempts = 0;
-        if (!disposed) setStatus("live");
+        if (!disposed) {
+          setStatus("live");
+        }
       };
 
       ws.onmessage = (message: MessageEvent<string>) => {
-        if (disposed) return;
+        if (disposed) {
+          return;
+        }
+
         try {
           const env = JSON.parse(message.data) as TacticalEnvelope;
           handlerRef.current(env);
         } catch {
-          // abaikan payload yang tidak valid · jangan crash stream
+          // Abaikan payload yang tidak valid agar stream tidak crash.
         }
       };
 
       ws.onclose = () => {
-        if (disposed) return;
-        if (retryTimer) clearTimeout(retryTimer);
+        if (disposed) {
+          return;
+        }
+
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+        }
+
         const delay = Math.min(1000 * 2 ** attempts, 15000);
         attempts += 1;
         setStatus(attempts > 5 ? "offline" : "reconnecting");
@@ -67,8 +98,12 @@ export function useTacticalStream(onEvent: (env: TacticalEnvelope) => void) {
 
     return () => {
       disposed = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      if (socket) socket.close();
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+      if (socket) {
+        socket.close();
+      }
     };
   }, []);
 

@@ -1,38 +1,55 @@
-# CAKRA-DECOY 2.0 — full-stack. Deploy: docker compose up -d --build
-# caddy diikat ke 127.0.0.1 supaya hanya cloudflared (lokal) yang bisa akses,
-# tidak terbuka langsung ke internet.
 services:
-  backend:
-    build: ./backend
-    environment:
-      - DEMO_EMITTER=0 # emitter lama mati; pakai toggle "Penyerang otomatis" di Command Center
-    env_file:
-      - path: ./backend/.env # API key dll; opsional, dibuat sekali di server
-        required: false
-    expose:
-      - "8000"
-    restart: unless-stopped
-
-  caddy:
-    image: caddy:2-alpine
-    depends_on:
-      - backend
-    ports:
-      - "127.0.0.1:8181:8080" # cloudflared tunnel -> http://localhost:8181 (8080/8090 dipakai app lain)
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-    restart: unless-stopped
-
   frontend:
     build:
       context: ./frontend
-      args:
-        NEXT_PUBLIC_BACKEND_URL: https://cakra.polije.app
-        NEXT_PUBLIC_BACKEND_WS_URL: wss://cakra.polije.app/ws/command-stream
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - backend
     expose:
       - "3000"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - path: ./backend/.env
+        required: false
+    init: true
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   caddy_data:
+  caddy_config:
