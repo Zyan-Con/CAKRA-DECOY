@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "next": "^14.2.35",

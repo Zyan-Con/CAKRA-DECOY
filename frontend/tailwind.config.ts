@@ -1,23 +1,41 @@
 import type { Config } from "tailwindcss";
 
 /*
-  Palet terang 70 / 20 / 10 (R-29):
-    netral dominan (paper/surface) · ink navy sekunder · emerald aksen.
-  Fungsional (warn/danger/info) dibatasi untuk titik data kecil.
+  "Layar Taktis" — arti warna tetap (konvensi kokpit militer):
+    signal  = aksi / langkah aktif / sorotan (tidak pernah status)
+    hostile = penyerang, ilusi, bahaya
+    safe    = kondisi asli, aman, selesai
+  gov-* hanya untuk portal penyerang (dunia palsu bergaya web pemerintah).
 */
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
+        bg: "#07080A",
+        panel: "#0E1013",
+        "panel-2": "#13161A",
+        line: "#23262B",
+        ink: "#F2F2F0",
+        "ink-soft": "#C9CCD2",
+        "ink-mute": "#8C9099",
+        signal: "#FFB000",
+        hostile: "#FF4D4D",
+        safe: "#3DDC84",
+        gov: {
+          bg: "#F4F5F7",
+          card: "#FFFFFF",
+          ink: "#1D2330",
+          soft: "#4A5363",
+          brand: "#1D3A6B",
+          line: "#DDE2EA",
+          alarm: "#C62828",
+        },
+        // legacy: dihapus di task 11
         paper: "#f4f3ee",
         surface: "#ffffff",
         "surface-2": "#faf9f5",
         border: "#e7e5dc",
-        "border-strong": "#d7d4c7",
-        ink: "#18283c",
-        "ink-soft": "#3c495b",
-        "ink-mute": "#78818f",
         "ink-faint": "#a7adb7",
         accent: "#0e7a54",
         "accent-deep": "#0a5e41",
@@ -31,40 +49,18 @@ const config: Config = {
         "info-weak": "#e2ebf3",
       },
       fontFamily: {
-        mono: [
-          "IBM Plex Mono",
-          "ui-monospace",
-          "SFMono-Regular",
-          "JetBrains Mono",
-          "Menlo",
-          "Consolas",
-          "monospace",
-        ],
-        sans: [
-          "IBM Plex Sans",
-          "ui-sans-serif",
-          "system-ui",
-          "-apple-system",
-          "Segoe UI",
-          "Roboto",
-          "Helvetica Neue",
-          "Arial",
-          "sans-serif",
-        ],
-      },
-      spacing: {
-        "4.5": "1.125rem",
+        ui: ["var(--font-ui)", "ui-sans-serif", "system-ui", "sans-serif"],
+        data: ["var(--font-data)", "ui-monospace", "Consolas", "monospace"],
+        gov: ["var(--font-gov)", "ui-sans-serif", "system-ui", "sans-serif"],
+        // legacy: dihapus di task 11
+        mono: ["var(--font-data)", "ui-monospace", "monospace"],
+        sans: ["var(--font-ui)", "ui-sans-serif", "sans-serif"],
       },
       letterSpacing: {
         milli: "0.18em",
       },
-      borderRadius: {
-        xl: "14px",
-      },
-      boxShadow: {
-        card: "0 1px 2px rgba(24,40,60,0.05)",
-        raised: "0 6px 20px -10px rgba(24,40,60,0.18)",
-        lg: "0 20px 44px -22px rgba(24,40,60,0.28)",
+      transitionDuration: {
+        DEFAULT: "200ms",
       },
     },
   },

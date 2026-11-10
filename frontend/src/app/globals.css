@@ -3,16 +3,38 @@
 @tailwind utilities;
 
 /*
-  CAKRA-DECOY 2.0 — sistem desain terang, elegan, profesional.
-  Disiplin warna 70 / 20 / 10:
-    70%  netral hangat (paper + putih) — permukaan dominan
-    20%  navy tua (ink) — header, struktur, teks
-    10%  emerald (accent) — CTA, status aktif, sorotan kunci
-  Warna fungsional (amber/brick) hanya dipakai di titik data kecil.
-  Identitas (bukan slop): aksen emerald tipis di bawah judul seksi, nomor indeks,
-  kartu putih bersih dengan bayangan lembut — bukan kartu seragam/dekoratif.
+  CAKRA-DECOY · "Layar Taktis"
+  Sisi kita: hitam pekat + aksen amber (aksi), merah (penyerang/ilusi), hijau (asli/aman).
+  Portal penyerang memakai palet gov-* terang dan tidak pernah memakai token taktis.
+  Tidak ada glitch, scanline, atau glow.
 */
 
+@layer base {
+  html,
+  body {
+    min-height: 100%;
+  }
+  body {
+    @apply bg-bg font-ui text-ink antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible {
+    outline: 2px solid #ffb000;
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* legacy: dihapus di task 11 (dipakai halaman lama sampai ditulis ulang) */
 :root {
   /* 70% — netral dominan */
   --paper: #f4f3ee;
@@ -54,14 +76,6 @@
 html,
 body {
   height: 100%;
-}
-
-body {
-  background-color: var(--paper);
-  color: var(--ink);
-  font-family: var(--sans);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 /* Kartu putih elegan — permukaan utama konten. */
