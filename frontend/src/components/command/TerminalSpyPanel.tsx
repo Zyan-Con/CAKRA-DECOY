@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Panel, type PanelFocus } from "@/components/ui/Panel";
 import type { TacticalState } from "@/lib/tactical-state";
+import { cleanCommand } from "@/lib/terminal";
 
 export interface TerminalSpyPanelProps {
   state: TacticalState;
@@ -43,8 +44,9 @@ export function TerminalSpyPanel({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!command.trim()) return;
-            onCommand(command);
+            const cmd = cleanCommand(command);
+            if (!cmd) return;
+            onCommand(cmd);
             setCommand("");
           }}
           className="mt-3 flex gap-2"

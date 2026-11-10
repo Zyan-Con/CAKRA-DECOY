@@ -62,7 +62,17 @@ export function appendLog(
   log: readonly TacticalEnvelope[],
   env: TacticalEnvelope,
 ): TacticalEnvelope[] {
-  const next = [...log, env];
+  // Setiap FORENSIC_INTEGRITY_ALERT membawa seluruh ledger; cukup simpan salinan penuh di event terbaru.
+  const hasLedger = (e: TacticalEnvelope) =>
+    e.event_type === "FORENSIC_INTEGRITY_ALERT" && (e.payload as ForensicIntegrityAlert).ledger !== undefined;
+  const prior = hasLedger(env)
+    ? log.map((e) => {
+        if (!hasLedger(e)) return e;
+        const { ledger: _drop, ...rest } = e.payload as ForensicIntegrityAlert;
+        return { ...e, payload: rest };
+      })
+    : log;
+  const next = [...prior, env];
   return next.length > LOG_CAP ? next.slice(next.length - LOG_CAP) : next;
 }
 
@@ -123,6 +133,10 @@ function applySnapshot(
     return {
       ...s,
       ...global,
+      // Vaksin milik juri sendiri bertahan walau browser lain me-reset panggung;
+      // latest_immunity di snapshot bisa milik sesi lain, jadi tidak dipakai di scope.
+      kodamNodes: s.broadcast ? s.kodamNodes : snap.kodam_nodes,
+      broadcast: s.broadcast,
       sessions: sessions.length > 0 ? sessions : s.sessions,
     };
   }

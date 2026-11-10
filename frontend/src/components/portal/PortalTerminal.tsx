@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { TerminalCommandExecuted } from "@/lib/types";
+import { cleanCommand } from "@/lib/terminal";
 
 const QUICK_CMDS = [
   "whoami",
@@ -67,8 +68,9 @@ export function PortalTerminal({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (disabled) return;
-          onCommand(command);
+          const cmd = cleanCommand(command);
+          if (disabled || !cmd) return;
+          onCommand(cmd);
           setCommand("");
         }}
         className="flex items-center gap-2 border-t border-gov-line px-4 py-2.5"

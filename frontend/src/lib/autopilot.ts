@@ -22,7 +22,10 @@ export interface AutopilotDeps {
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
 }
 
-/** Resolve saat dibatalkan; reject dengan error aslinya saat satu aksi gagal. */
+/**
+ * Resolve saat dibatalkan; reject dengan error aslinya saat satu aksi gagal.
+ * Setelah abort tidak ada progress maupun error yang dilaporkan: run lama tidak boleh menimpa status run baru.
+ */
 export async function runAutopilot({
   signal,
   makeContext,
@@ -30,16 +33,22 @@ export async function runAutopilot({
   onProgress,
   sleep,
 }: AutopilotDeps): Promise<void> {
-  for (let round = 1; !signal.aborted; round += 1) {
-    await reset();
-    const ctx = makeContext();
-    for (const [stepIndex, step] of STEPS.entries()) {
-      onProgress({ round, stepIndex, sessionId: ctx.sessionId() });
-      if (signal.aborted) return;
-      await step.run(ctx);
-      await sleep(AUTOPILOT_STEP_DELAY_MS, signal);
+  try {
+    for (let round = 1; !signal.aborted; round += 1) {
+      await reset();
+      const ctx = makeContext();
+      for (const [stepIndex, step] of STEPS.entries()) {
+        if (signal.aborted) return;
+        onProgress({ round, stepIndex, sessionId: ctx.sessionId() });
+        if (signal.aborted) return;
+        await step.run(ctx);
+        await sleep(AUTOPILOT_STEP_DELAY_MS, signal);
+      }
+      await sleep(AUTOPILOT_ROUND_PAUSE_MS, signal);
     }
-    await sleep(AUTOPILOT_ROUND_PAUSE_MS, signal);
+  } catch (err) {
+    if (signal.aborted) return;
+    throw err;
   }
 }
 

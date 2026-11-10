@@ -8,7 +8,9 @@ export type GuidePhase =
   | "awaiting"
   | "done"
   | "failed"
-  | "not-diverted";
+  | "not-diverted"
+  /** Panggung demo sedang di-reset; semua aksi ditahan. */
+  | "resetting";
 
 export interface GuideState {
   index: number;
@@ -23,6 +25,7 @@ export type GuideAction =
   | { type: "SATISFIED" }
   | { type: "TIMEOUT" }
   | { type: "NEXT" }
+  | { type: "RESET_START" }
   | { type: "RESTART" };
 
 /** Batas tunggu event WS setelah API sukses, sebelum langkah dinyatakan selesai (atau tidak dibelokkan). */
@@ -50,9 +53,11 @@ export function reduceGuide(s: GuideState, a: GuideAction): GuideState {
         ? { ...s, phase: "failed", error: a.error }
         : s;
     case "SATISFIED":
+      // not-diverted termasuk: bukti pembelokan yang telat tiba tetap mengoreksi kesimpulan "login sah".
       return s.phase === "ready" ||
         s.phase === "running" ||
-        s.phase === "awaiting"
+        s.phase === "awaiting" ||
+        s.phase === "not-diverted"
         ? { ...s, phase: "done" }
         : s;
     case "TIMEOUT":
@@ -68,6 +73,8 @@ export function reduceGuide(s: GuideState, a: GuideAction): GuideState {
         error: null,
       };
     }
+    case "RESET_START":
+      return { ...s, phase: "resetting", error: null };
     case "RESTART":
       return initialGuideState;
   }

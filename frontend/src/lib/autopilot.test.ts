@@ -81,3 +81,37 @@ test("action failure rejects and stops loop", async () => {
   await expect(runAutopilot(h.deps(() => {}))).rejects.toThrow("Backend 500");
   expect(h.calls).not.toContain("openBait");
 });
+
+test("no progress is reported after abort", async () => {
+  const h = harness();
+  const seen: number[] = [];
+  await runAutopilot({
+    ...h.deps((p) => seen.push(p.stepIndex)),
+    sleep: async () => {
+      h.controller.abort();
+    },
+  });
+  expect(seen).toEqual([0]);
+});
+
+test("failure of an action that finishes after abort resolves quietly", async () => {
+  const h = harness({ failOn: "command" });
+  const deps = h.deps(() => {});
+  const ctx = deps.makeContext;
+  await expect(
+    runAutopilot({
+      ...deps,
+      makeContext: () => {
+        const c = ctx();
+        const command = c.command;
+        return {
+          ...c,
+          command: async () => {
+            h.controller.abort();
+            await command();
+          },
+        };
+      },
+    }),
+  ).resolves.toBeUndefined();
+});

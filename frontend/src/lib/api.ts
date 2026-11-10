@@ -9,18 +9,28 @@ export class ApiError extends Error {
   }
 }
 
+/** Batas tunggu respons backend; tanpa ini sidebar /demo bisa tertahan di "running" sampai timeout proxy (~100 dtk). */
+export const API_TIMEOUT_MS = 15000;
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       ...init,
+      signal: controller.signal,
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     });
   } catch {
-    // fetch hanya reject saat jaringan/server tak terjangkau; pesan browser ("Failed to fetch") tidak jelas bagi juri.
+    // Pesan browser ("Failed to fetch", "AbortError") tidak jelas bagi juri.
     throw new ApiError(
-      "Server tidak bisa dihubungi. Periksa koneksi, lalu coba lagi.",
+      controller.signal.aborted
+        ? "Server tidak merespons. Coba lagi sebentar lagi."
+        : "Server tidak bisa dihubungi. Periksa koneksi, lalu coba lagi.",
     );
+  } finally {
+    clearTimeout(timer);
   }
   if (!res.ok) {
     let detail = res.statusText;

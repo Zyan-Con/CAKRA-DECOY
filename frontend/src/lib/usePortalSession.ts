@@ -9,6 +9,7 @@ import {
   type PortalState,
 } from "@/lib/api";
 import type { ExecutionSource, TerminalCommandExecuted } from "@/lib/types";
+import { cleanCommand } from "@/lib/terminal";
 
 export interface PortalSession {
   auth: LoginResponse | null;
@@ -85,8 +86,8 @@ export function usePortalSession(): PortalSession {
   const command = useCallback(
     (raw: string) =>
       guarded(async () => {
-        const cmd = raw.trim();
-        if (!cmd) return;
+        const cmd = cleanCommand(raw);
+        if (!cmd) throw new Error("Perintah kosong. Ketik perintah Linux terlebih dahulu.");
         const res = await api.sysConsole(token(), cmd);
         setHistory((prev) => [
           ...prev,

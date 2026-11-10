@@ -86,3 +86,15 @@ test("RESTART resets", () => {
     reduceGuide({ index: 3, phase: "failed", error: "x" }, { type: "RESTART" }),
   ).toEqual(initialGuideState);
 });
+
+test("late alert after not-diverted still completes step 1", () => {
+  const s = reduceGuide({ index: 0, phase: "not-diverted", error: null }, { type: "SATISFIED" });
+  expect(s.phase).toBe("done");
+});
+
+test("resetting blocks RUN until RESTART", () => {
+  const resetting = reduceGuide({ index: 3, phase: "done", error: null }, { type: "RESET_START" });
+  expect(resetting.phase).toBe("resetting");
+  expect(reduceGuide(resetting, { type: "RUN" })).toBe(resetting);
+  expect(reduceGuide(resetting, { type: "RESTART" })).toEqual(initialGuideState);
+});

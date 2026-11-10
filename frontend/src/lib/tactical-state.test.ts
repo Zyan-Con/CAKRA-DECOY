@@ -268,3 +268,27 @@ describe("ownTamperTarget", () => {
     expect(ownTamperTarget([block(1, "B")], null)).toBeNull();
   });
 });
+
+test("scoped snapshot keeps own vaccination after another browser resets", () => {
+  const immune = [kodam("KODAM-JAYA", "IMMUNE_PROTECTED")];
+  const imm = {
+    broadcast_active: true,
+    generated_rule: { rule_id: "R1", iptables_cmd: "iptables -A", modsec_rule: "SecRule" },
+    kodam_nodes_status: immune,
+  };
+  const s = deriveTactical(
+    [env("IMMUNITY_BROADCASTED", imm, "A"), env("INITIAL_STATE_SYNC", snapshot({ kodam_nodes: [kodam("KODAM-JAYA")] }), null)],
+    { sessionId: "A" },
+  );
+  expect(s.kodamNodes).toEqual(immune);
+  expect(s.broadcast?.generated_rule.rule_id).toBe("R1");
+});
+
+test("appendLog keeps the full ledger only on the newest integrity event", () => {
+  const fia = (n: number) =>
+    env("FORENSIC_INTEGRITY_ALERT", { block_index: n, chain_integrity: "VALID_IMMUTABLE", action_summary: "x", ledger: [block(0, null), block(n, "A")] }, "A");
+  const log = appendLog(appendLog([], fia(1)), fia(2));
+  expect((log[0].payload as { ledger?: unknown[] }).ledger).toBeUndefined();
+  expect((log[1].payload as { ledger?: unknown[] }).ledger).toHaveLength(2);
+  expect(deriveTactical(log, undefined).ledger.map((b) => b.block_index)).toEqual([0, 2]);
+});
