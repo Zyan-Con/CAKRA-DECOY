@@ -1,3 +1,5 @@
+import type { ChainIntegrity } from "@/lib/types";
+
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
@@ -83,14 +85,14 @@ export const api = {
   portalState: (sessionToken: string) =>
     apiFetch<PortalState>(`/api/portal/state?session_token=${sessionToken}`),
 
-  otControl: (
-    sessionToken: string,
-    action: string,
-    targetSystem: string,
-  ) =>
+  otControl: (sessionToken: string, action: string, targetSystem: string) =>
     apiFetch<OtControlResponse>("/api/ot/control", {
       method: "POST",
-      body: JSON.stringify({ session_token: sessionToken, action, target_system: targetSystem }),
+      body: JSON.stringify({
+        session_token: sessionToken,
+        action,
+        target_system: targetSystem,
+      }),
     }),
 
   sysConsole: (sessionToken: string, command: string) =>
@@ -116,6 +118,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+
+  /** Kembalikan panggung demo: Kodam STANDBY, vaksin dicabut, rantai bukti dipulihkan bila rusak. */
+  demoReset: () =>
+    apiFetch<{ status: string; chain_integrity: ChainIntegrity }>(
+      "/api/demo/reset",
+      { method: "POST" },
+    ),
 
   exportPdfUrl: (sessionToken?: string) =>
     `${BASE_URL}/api/forensic/export-pdf?session_token=${sessionToken ?? ""}`,
