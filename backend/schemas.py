@@ -125,6 +125,8 @@ class ForensicBlock(BaseModel):
     current_hash: str
     chain_integrity: ChainIntegrity = ChainIntegrity.VALID
     tampered_block_index: Optional[int] = None
+    # Pemilik blok: dipakai frontend untuk menyaring ledger per sesi juri.
+    session_id: Optional[str] = None
 
 
 class GeneratedRule(BaseModel):

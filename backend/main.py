@@ -40,7 +40,6 @@ from schemas import (
     HoneytokenVector,
     ImmunityBroadcasted,
     InterceptionAlert,
-    KodamNode,
     KodamStatus,
     OTSabotageAttempt,
     RoutingMode,
@@ -129,7 +128,9 @@ async def _broadcast_ledger_sync(
             EventType.FORENSIC_INTEGRITY_ALERT,
             ForensicIntegrityAlert(
                 block_index=block_index,
-                chain_integrity=ChainIntegrity.VALID if is_valid else ChainIntegrity.TAMPERED,
+                chain_integrity=ChainIntegrity.VALID
+                if is_valid
+                else ChainIntegrity.TAMPERED,
                 tampered_block_index=bad_idx,
                 action_summary=action_summary,
                 ledger=ws.build_forensic_blocks(),
@@ -494,6 +495,23 @@ async def restore_ledger() -> dict:
         )
     )
     return res
+
+
+@app.post("/api/demo/reset")
+async def demo_reset() -> dict:
+    """Kembalikan panggung demo: Kodam STANDBY, vaksin dicabut, rantai bukti dipulihkan bila rusak."""
+    decoy.store.kodam_status.clear()
+    decoy.store.latest_immunity = None
+    is_valid, _, _ = forensic_chain.forensic_ledger.verify_chain()
+    if not is_valid:
+        is_valid, _ = forensic_chain.forensic_ledger.restore_verified_chain()
+    await ws.manager.broadcast(
+        make_event(
+            EventType.INITIAL_STATE_SYNC, ws.build_snapshot(), seq=ws.manager.next_seq()
+        )
+    )
+    integrity = ChainIntegrity.VALID if is_valid else ChainIntegrity.TAMPERED
+    return {"status": "DEMO_RESET", "chain_integrity": integrity.value}
 
 
 @app.get("/api/forensic/export-pdf")

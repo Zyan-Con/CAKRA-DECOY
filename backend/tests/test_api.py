@@ -136,3 +136,44 @@ def test_pdf_export():
         r = c.get("/api/forensic/export-pdf", params={"session_token": tok})
         assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
         assert r.content[:4] == b"%PDF"
+
+
+def _sqli_login(c):
+    return c.post(
+        "/api/auth/login", json={"username": "admin' OR '1'='1", "password": "x"}
+    ).json()["session_token"]
+
+
+def _snapshot(c):
+    with c.websocket_connect("/ws/command-stream") as ws:
+        ev = ws.receive_json()
+        assert ev["event_type"] == "INITIAL_STATE_SYNC"
+        return ev["payload"]
+
+
+def test_ledger_blocks_carry_session_id():
+    with TestClient(main.app) as c:
+        tok = _sqli_login(c)
+        ledger = _snapshot(c)["forensic_ledger"]
+        assert any(b.get("session_id") == tok for b in ledger)
+
+
+def test_demo_reset_restores_kodam_standby():
+    with TestClient(main.app) as c:
+        tok = _sqli_login(c)
+        c.post("/api/immunity/broadcast", json={"session_token": tok})
+        r = c.post("/api/demo/reset")
+        assert r.status_code == 200 and r.json()["status"] == "DEMO_RESET"
+        snap = _snapshot(c)
+        assert all(k["status"] == "STANDBY" for k in snap["kodam_nodes"])
+        assert snap["latest_immunity"] is None
+
+
+def test_demo_reset_repairs_tampered_chain():
+    with TestClient(main.app) as c:
+        _sqli_login(c)
+        c.post("/api/forensic/tamper-test", json={"block_index": 1})
+        r = c.post("/api/demo/reset")
+        assert r.json()["chain_integrity"] == "VALID_IMMUTABLE"
+        ledger = _snapshot(c)["forensic_ledger"]
+        assert not any(b["chain_integrity"] == "TAMPERED_CRITICAL" for b in ledger)

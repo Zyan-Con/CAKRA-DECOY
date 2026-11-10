@@ -5,7 +5,7 @@ services:
   backend:
     build: ./backend
     environment:
-      - DEMO_EMITTER=1 # pancarkan stream demo biar FE/juri lihat data
+      - DEMO_EMITTER=0 # emitter lama mati; pakai toggle "Penyerang otomatis" di Command Center
     env_file:
       - path: ./backend/.env # API key dll; opsional, dibuat sekali di server
         required: false
