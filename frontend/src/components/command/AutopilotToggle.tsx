@@ -53,7 +53,7 @@ export function AutopilotToggle({
         <Icon name="info-circle-bold-duotone" className="h-5 w-5" />
       </button>
       {enabled && progress && (
-        <span className="text-sm text-signal" aria-live="polite">
+        <span className="text-sm text-ink-soft" aria-live="polite">
           Berjalan · langkah {progress.stepIndex + 1}/{STEPS.length} (
           {STEPS[progress.stepIndex]?.title}) · putaran {progress.round}
         </span>

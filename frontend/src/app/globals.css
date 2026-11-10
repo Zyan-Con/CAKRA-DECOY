@@ -22,6 +22,10 @@
     outline: 2px solid #ffb000;
     outline-offset: 2px;
   }
+  /* Portal penyerang terang: amber di atas putih hanya 1.83:1, pakai biru instansi (11.2:1). */
+  .font-gov :focus-visible {
+    outline-color: #1d3a6b;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

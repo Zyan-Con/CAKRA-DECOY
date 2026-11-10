@@ -42,7 +42,13 @@ function StepList({ guide }: { guide: Guide }) {
   );
 }
 
-export function GuideSidebar({ guide }: { guide: Guide }) {
+export interface GuideSidebarProps {
+  guide: Guide;
+  /** WS ke ruang komando tersambung. Tanpa ini bukti langkah tidak bisa diterima, jadi aksi ditahan. */
+  live: boolean;
+}
+
+export function GuideSidebar({ guide, live }: GuideSidebarProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const { state, step } = guide;
 
@@ -50,7 +56,11 @@ export function GuideSidebar({ guide }: { guide: Guide }) {
     headingRef.current?.focus();
   }, [state.index]);
 
-  const busy = state.phase === "running" || state.phase === "awaiting";
+  const busy =
+    state.phase === "running" ||
+    state.phase === "awaiting" ||
+    state.phase === "resetting";
+  const blocked = busy || !live;
 
   return (
     <aside className="flex flex-col gap-6 rounded-md border border-line bg-panel p-5 min-[1100px]:sticky min-[1100px]:top-4">
@@ -72,6 +82,7 @@ export function GuideSidebar({ guide }: { guide: Guide }) {
             </p>
             <Button
               className="mt-5 w-full"
+              disabled={state.phase === "resetting"}
               onClick={() => void guide.restart()}
             >
               <Icon name="restart-bold-duotone" className="h-4 w-4" /> Ulangi
@@ -100,9 +111,13 @@ export function GuideSidebar({ guide }: { guide: Guide }) {
                   ? NOT_DIVERTED
                   : state.phase === "failed"
                     ? `Gagal: ${state.error}`
-                    : busy
-                      ? "Menjalankan aksi penyerang…"
-                      : step.before}
+                    : state.phase === "resetting"
+                      ? "Menyiapkan panggung demo…"
+                      : busy
+                        ? "Menunggu respons sistem…"
+                        : !live
+                          ? "Menunggu koneksi ke ruang komando. Aksi dibuka setelah status di kanan atas menjadi Terhubung."
+                          : step.before}
             </p>
             {state.phase === "done" ? (
               <Button className="mt-5 w-full" onClick={guide.next}>
@@ -113,7 +128,7 @@ export function GuideSidebar({ guide }: { guide: Guide }) {
               <Button
                 className="mt-5 w-full"
                 variant={state.phase === "failed" ? "danger" : "primary"}
-                disabled={busy}
+                disabled={blocked}
                 onClick={() => void guide.run()}
               >
                 {busy ? (

@@ -85,7 +85,7 @@ export function PortalTerminal({
           aria-label="Perintah Web-SSH"
           placeholder={locked ?? "ketik perintah…"}
           spellCheck={false}
-          className="min-w-0 flex-1 bg-transparent font-data text-sm outline-none placeholder:text-gov-soft disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-sm bg-transparent font-data text-sm placeholder:text-gov-soft disabled:opacity-60"
         />
         <button
           type="submit"

@@ -67,7 +67,7 @@ export default function CommandCenterPage() {
             Demo terpandu
           </Link>
           <Link
-            href="/target-portal"
+            href="/target-portal?panel=1"
             className="flex min-h-[44px] items-center rounded-sm border border-line px-4 text-sm font-semibold text-ink hover:border-ink-mute"
           >
             Portal penyerang

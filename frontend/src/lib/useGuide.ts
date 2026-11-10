@@ -75,6 +75,9 @@ export function useGuide(
 
   const restart = useCallback(async () => {
     setWarning(null);
+    // Tahan semua aksi sampai reset selesai, supaya klik pertama tidak dihapus oleh logout di bawah.
+    portalRef.current.logout();
+    dispatch({ type: "RESET_START" });
     try {
       await api.demoReset();
     } catch {
@@ -82,7 +85,6 @@ export function useGuide(
         "Panggung demo tidak bisa di-reset. Peta Kodam mungkin masih menampilkan hasil sebelumnya.",
       );
     }
-    portalRef.current.logout();
     dispatch({ type: "RESTART" });
   }, []);
 
@@ -98,7 +100,8 @@ export function useGuide(
       !(
         state.phase === "ready" ||
         state.phase === "running" ||
-        state.phase === "awaiting"
+        state.phase === "awaiting" ||
+        state.phase === "not-diverted"
       )
     )
       return;

@@ -38,7 +38,7 @@ export function KodamMap({ state, focus, onBroadcast, busy }: KodamMapProps) {
         <path
           d={INDONESIA_PATH}
           fill="#13161A"
-          stroke="#2C3036"
+          stroke="#5A606B"
           strokeWidth={1.5}
         />
         {nodes.map((n) => {

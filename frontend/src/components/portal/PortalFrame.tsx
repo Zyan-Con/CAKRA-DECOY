@@ -4,7 +4,23 @@ import { Icon } from "@/components/ui/Icon";
 // Domain fiktif (.local) dengan sengaja: portal ini jebakan, bukan tiruan situs instansi sungguhan.
 export const PORTAL_URL = "logistik.kodam-demo.local";
 
-/** Bingkai browser terang: menegaskan bahwa ini layar yang dilihat penyerang. */
+/** Kop portal instansi. Dipakai di dalam bingkai (/demo) maupun halaman penuh (/target-portal). */
+export function PortalHeader({ className = "px-5" }: { className?: string }) {
+  return (
+    <div className="border-b border-gov-line bg-gov-brand py-3 text-white">
+      <div className={className}>
+        <p className="text-sm font-semibold">
+          Portal Logistik &amp; Kendali SCADA Kodam
+        </p>
+        <p className="text-xs text-white/80">
+          Sistem Pertahanan Logistik Terpadu · Akses Terbatas
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Bingkai browser terang untuk layout terbelah /demo: menegaskan bahwa ini layar yang dilihat penyerang. */
 export function PortalFrame({
   children,
   url = PORTAL_URL,
@@ -28,14 +44,7 @@ export function PortalFrame({
           <span className="truncate">https://{url}</span>
         </span>
       </div>
-      <div className="border-b border-gov-line bg-gov-brand px-5 py-3 text-white">
-        <p className="text-sm font-semibold">
-          Portal Logistik &amp; Kendali SCADA Kodam
-        </p>
-        <p className="text-xs text-white/80">
-          Sistem Pertahanan Logistik Terpadu · Akses Terbatas
-        </p>
-      </div>
+      <PortalHeader />
       <div className="p-5">{children}</div>
     </div>
   );

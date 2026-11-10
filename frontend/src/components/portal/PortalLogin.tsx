@@ -13,7 +13,7 @@ export interface PortalLoginProps {
 }
 
 const field =
-  "w-full rounded border border-gov-line bg-white px-3 py-2.5 text-sm text-gov-ink outline-none focus:border-gov-brand disabled:bg-gov-bg";
+  "w-full rounded border border-gov-line bg-white px-3 py-2.5 text-sm text-gov-ink focus:border-gov-brand disabled:bg-gov-bg";
 
 export function PortalLogin({
   onSubmit,

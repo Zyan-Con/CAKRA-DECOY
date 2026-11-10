@@ -35,6 +35,7 @@ export function useAutopilot(): {
       controllerRef.current = controller;
       setEnabledState(true);
       setError(null);
+      setProgress(null);
       runAutopilot({
         signal: controller.signal,
         makeContext: createApiStepContext,

@@ -43,17 +43,14 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="mt-16 grid gap-px overflow-hidden rounded-md border border-line bg-line sm:grid-cols-5">
-          {STEPS.map((s, i) => (
-            <div key={s.id} className="bg-panel p-5">
-              <p className="font-data text-sm text-signal">0{i + 1}</p>
-              <p className="mt-2 text-base font-bold leading-snug text-ink">
-                {s.title}
-              </p>
-              <p className="mt-2 text-xs text-ink-mute">{s.technical}</p>
-            </div>
+        <ol className="mt-16 max-w-3xl divide-y divide-line border-y border-line">
+          {STEPS.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3">
+              <span className="text-base font-semibold text-ink">{s.title}</span>
+              <span className="text-sm text-ink-mute">{s.technical}</span>
+            </li>
           ))}
-        </div>
+        </ol>
 
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span className="text-ink-mute">Mode bebas:</span>
@@ -73,7 +70,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-line">
-        <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-xs leading-relaxed text-ink-mute">
+        <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-sm leading-relaxed text-ink-mute">
           <p>
             Catatan: portal &quot;asli&quot;, sabotase radar, dan broadcast 15
             Kodam adalah simulasi terkontrol untuk demonstrasi. Tidak ada

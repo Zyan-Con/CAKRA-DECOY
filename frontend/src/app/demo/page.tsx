@@ -16,13 +16,21 @@ import { PortalFrame } from "@/components/portal/PortalFrame";
 import { PortalLogin } from "@/components/portal/PortalLogin";
 import type { PanelFocus } from "@/components/ui/Panel";
 import { api } from "@/lib/api";
-import { SQLI_CREDENTIALS, type CommandPanelId } from "@/lib/attack-steps";
+import { SQLI_CREDENTIALS, type CommandPanelId, type PortalControl } from "@/lib/attack-steps";
 import { ownTamperTarget, type TacticalState } from "@/lib/tactical-state";
 import { useGuide } from "@/lib/useGuide";
 import { usePortalSession } from "@/lib/usePortalSession";
 import { useTacticalState } from "@/lib/useTacticalState";
 
 const ignore = () => undefined;
+
+/** Selama WS belum tersambung atau panggung di-reset, semua kontrol portal ditahan. */
+const WAITING_LOCK: Partial<Record<PortalControl, string>> = {
+  login: "Menunggu koneksi…",
+  terminal: "Menunggu koneksi…",
+  radar: "Menunggu koneksi…",
+  bait: "Menunggu koneksi…",
+};
 
 /** Urutan panel di kolom kanan. Alert dan peta Kodam selalu tampil (redup bila bukan fokus). */
 const PANEL_ORDER: CommandPanelId[] = [
@@ -67,6 +75,7 @@ export default function DemoPage() {
   const sessionId = portal.auth?.session_token ?? null;
   const { state, status, log } = useTacticalState({ sessionId });
   const guide = useGuide(portal, log);
+  const live = status === "live";
   const step = guide.step;
   const active = step?.panels ?? [];
 
@@ -79,7 +88,7 @@ export default function DemoPage() {
               Demo terpandu
             </h1>
             <p className="text-xs text-ink-mute">
-              Ikuti tombol di panel kiri. Lihat sebab di layar penyerang,
+              Ikuti tombol di panel pemandu. Lihat sebab di layar penyerang,
               akibatnya di ruang komando.
             </p>
           </div>
@@ -94,7 +103,7 @@ export default function DemoPage() {
       </header>
 
       <div className="mx-auto grid max-w-[1600px] gap-4 px-4 py-6 min-[1100px]:grid-cols-[300px_minmax(0,1fr)_minmax(0,1fr)]">
-        <GuideSidebar guide={guide} />
+        <GuideSidebar guide={guide} live={live} />
 
         <section aria-label="Layar penyerang" className="min-w-0">
           <PaneLabel tone="text-hostile">
@@ -105,7 +114,7 @@ export default function DemoPage() {
               <PortalDashboard
                 session={portal}
                 baitMode="sample"
-                locked={guide.locked}
+                locked={live && guide.state.phase !== "resetting" ? guide.locked : WAITING_LOCK}
                 wrap={guide.wrap}
               />
             ) : (
@@ -114,7 +123,13 @@ export default function DemoPage() {
                 prefill={SQLI_CREDENTIALS}
                 busy={portal.busy}
                 error={portal.error}
-                locked={guide.locked.login}
+                locked={
+                  !live
+                    ? "Menunggu koneksi ke ruang komando…"
+                    : guide.state.phase === "resetting"
+                      ? "Menyiapkan panggung demo…"
+                      : guide.locked.login
+                }
                 onSubmit={(u, p) =>
                   void guide.wrap(() => portal.login(u, p)).catch(ignore)
                 }
