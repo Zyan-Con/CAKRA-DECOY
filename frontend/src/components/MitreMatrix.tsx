@@ -68,7 +68,7 @@ export default function MitreMatrix({ techniques, profile }: MitreMatrixProps) {
                   <span className="font-mono text-accent">{t.technique_id}</span> · {t.technique_name}
                 </div>
                 <div className="font-mono text-[10px] text-ink-mute">
-                  {t.tactic_id} // {t.tactic_name}
+                  {`${t.tactic_id} // ${t.tactic_name}`}
                 </div>
               </div>
               <span className={`rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${SEVERITY[t.severity] ?? SEVERITY.LOW}`}>
