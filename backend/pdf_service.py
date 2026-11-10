@@ -1,7 +1,311 @@
+"""
+pdf_service.py — Laporan Forensik Digital (DFIR) per sesi penyerang.
+
+Isi disusun dengan pymupdf.Story (HTML + CSS) supaya teks panjang otomatis dibungkus dan
+halaman dipecah sendiri; kop, label simulasi, dan nomor halaman ditambahkan setelahnya.
+
+Prinsip isi:
+- Hanya data sesi yang dilaporkan (ledger: genesis + blok milik sesi ini).
+- Bagian yang datanya belum ada ditulis "belum ada", bukan diisi data contoh.
+- Dokumen ditandai jelas sebagai SIMULASI, tanpa tanda klasifikasi atau tanda tangan fiktif.
+- Semua teks berasal dari sesi (bisa berisi input penyerang), jadi wajib di-escape.
+"""
+
+from __future__ import annotations
 
 import datetime
-from typing import Any, Dict, List, Optional
+import html
+import io
+from typing import Any, Dict, Iterable, List, Optional, Sequence
+
 import pymupdf
+
+# Palet dokumen cetak (selaras portal instansi di frontend): biru instansi, tinta gelap, garis lembut.
+BRAND = "#1D3A6B"
+INK = "#1D2330"
+MUTED = "#4A5363"
+LINE = "#DDE2EA"
+ALERT = "#C62828"
+SAFE = "#1B7F4B"
+
+# Label aktor sama dengan di Command Center (frontend MitrePanel).
+ACTOR_LABEL = {
+    "STATE_SPONSORED_APT": "APT disponsori negara",
+    "ORGANIZED_CYBERCRIME": "Kejahatan siber terorganisir",
+    "SCRIPT_KIDDIE": "Penyerang amatir",
+}
+SAMPLE_LEAKED_IP = "103.147.12.89"  # IP dari beacon simulasi frontend (data contoh)
+PAGE = pymupdf.paper_rect("a4")
+CONTENT = PAGE + (48, 66, -48, -58)  # ruang untuk kop (atas) dan nomor halaman (bawah)
+
+CSS = f"""
+body {{ font-family: sans-serif; font-size: 9.5pt; color: {INK}; line-height: 1.45; }}
+h1 {{ font-size: 17pt; color: {BRAND}; margin: 0 0 4pt 0; }}
+h2 {{ font-size: 11pt; color: {BRAND}; margin: 16pt 0 6pt 0; padding-bottom: 3pt;
+      border-bottom: 1px solid {LINE}; }}
+p {{ margin: 0 0 6pt 0; }}
+.eyebrow {{ font-size: 8pt; font-weight: bold; color: {MUTED}; margin: 0 0 2pt 0; }}
+.lead {{ color: {MUTED}; }}
+.muted {{ color: {MUTED}; }}
+.note {{ font-size: 8pt; color: {MUTED}; }}
+.mono {{ font-family: monospace; font-size: 8pt; }}
+.alert {{ color: {ALERT}; font-weight: bold; }}
+.safe {{ color: {SAFE}; font-weight: bold; }}
+.banner {{ border-left: 3px solid {SAFE}; padding: 2pt 0 2pt 8pt; margin: 8pt 0; }}
+.banner-alert {{ border-left: 3px solid {ALERT}; padding: 2pt 0 2pt 8pt; margin: 8pt 0; }}
+.code {{ border-left: 3px solid {LINE}; padding: 2pt 0 2pt 8pt; margin: 6pt 0; }}
+.kv {{ margin: 0 0 3pt 0; }}
+.k {{ color: {MUTED}; }}
+table {{ width: 100%; border-collapse: collapse; margin: 2pt 0 4pt 0; }}
+th {{ text-align: left; font-size: 8pt; color: {MUTED}; border-bottom: 1px solid {MUTED}; padding: 4pt 5pt; }}
+td {{ vertical-align: top; border-bottom: 1px solid {LINE}; padding: 4pt 5pt; }}
+tr.bad td {{ color: {ALERT}; }}
+.sign td {{ border-bottom: none; padding-top: 10pt; width: 50%; }}
+"""
+
+
+def _e(value: Any) -> str:
+    """Escape teks untuk HTML Story (input penyerang bisa berisi < > & ")."""
+    return html.escape("" if value is None else str(value), quote=True)
+
+
+def _enum(value: Any) -> str:
+    return str(getattr(value, "value", value) or "")
+
+
+def _kv_table(rows: Iterable[tuple[str, str]]) -> str:
+    """Pasangan label/nilai sebagai baris biasa: MuPDF Story mengabaikan lebar kolom tabel,
+    sehingga tabel dua kolom membuat label patah per kata dan menimpa nilainya."""
+    return "".join(f"<p class='kv'><span class='k'>{_e(k)}:</span> {v}</p>" for k, v in rows)
+
+
+def _session_blocks(
+    blocks: Sequence[Dict[str, Any]], session_id: Optional[str]
+) -> List[Dict[str, Any]]:
+    """Genesis + blok milik sesi ini saja: laporan satu sesi tidak memuat aksi sesi lain."""
+    return [
+        b
+        for b in blocks
+        if b.get("block_index") == 0
+        or (session_id and b.get("session_id") == session_id)
+    ]
+
+
+def _has(blocks: Sequence[Dict[str, Any]], prefix: str) -> bool:
+    return any(str(b.get("action_summary", "")).startswith(prefix) for b in blocks)
+
+
+def _section_summary(
+    sid: str,
+    session: Dict[str, Any],
+    blocks: List[Dict[str, Any]],
+    telemetry: Optional[Dict[str, Any]],
+) -> str:
+    vector = _e(session.get("entry_vector") or "pola serangan")
+    score = session.get("threat_score")
+    score_txt = (
+        f" dengan skor ancaman <b>{_e(score)}/100</b>" if score is not None else ""
+    )
+    commands = sum(
+        1
+        for b in blocks
+        if str(b.get("action_summary", "")).startswith("TERMINAL_COMMAND")
+    )
+    facts = [
+        "Penyerang dibelokkan ke portal jebakan (Mirror-Twin); sistem asli tidak tersentuh.",
+        f"{commands} perintah terminal penyerang tersadap."
+        if commands
+        else "Belum ada perintah terminal yang tercatat.",
+        "Percobaan sabotase radar dijawab dengan ilusi; radar asli tetap normal."
+        if _has(blocks, "OT_SCADA_SABOTAGE")
+        else "Tidak ada percobaan sabotase OT pada sesi ini.",
+        "File umpan terbuka dan mengirim balik identitas penyerang."
+        if telemetry
+        else "Belum ada file umpan yang dibuka pada sesi ini.",
+        "Vaksin (rule blokir) disebarkan ke 15 Kodam."
+        if _has(blocks, "HERD_IMMUNITY_BROADCAST")
+        else "Vaksin belum disebarkan.",
+    ]
+    items = "".join(f"<li>{f}</li>" for f in facts)
+    return (
+        "<h2>1. Ringkasan</h2>"
+        f"<p>Sesi <span class='mono'>{_e(sid)}</span> terdeteksi sebagai {vector}{score_txt}.</p>"
+        f"<ul>{items}</ul>"
+    )
+
+
+def _section_attacker(
+    session: Dict[str, Any], telemetry: Optional[Dict[str, Any]]
+) -> str:
+    out = "<h2>2. Identitas penyerang</h2>"
+    profile = session.get("attacker_profile") or {}
+    if profile:
+        out += _kv_table(
+            [
+                (
+                    "Klasifikasi aktor (rule statis)",
+                    f"{_e(ACTOR_LABEL.get(_enum(profile.get('actor_classification')), _enum(profile.get('actor_classification'))))} "
+                    f"<span class='muted'>({_e(profile.get('confidence_pct'))}% keyakinan)</span>",
+                ),
+            ]
+        )
+    if not telemetry:
+        return (
+            out
+            + "<p class='muted'>Belum ada file umpan yang dibuka, jadi identitas asli penyerang belum terbongkar.</p>"
+        )
+    geo = telemetry.get("geo_location") or {}
+    fp = telemetry.get("device_fingerprint") or {}
+    rows = [
+        (
+            "IP yang terlihat (proxy)",
+            f"<span class='mono'>{_e(telemetry.get('apparent_proxy_ip', '-'))}</span>",
+        ),
+        (
+            "IP asli",
+            f"<span class='mono alert'>{_e(telemetry.get('real_leaked_ip', '-'))}</span>",
+        ),
+        ("Lokasi (tingkat kota, dari IP)", _e(geo.get("city", "-"))),
+        ("Perangkat (GPU)", _e(fp.get("gpu_renderer", "-"))),
+        ("Sistem operasi / browser", _e(fp.get("os", "-"))),
+        ("Sidik canvas", f"<span class='mono'>{_e(fp.get('canvas_hash', '-'))}</span>"),
+        (
+            "Berkas umpan",
+            f"<span class='mono'>{_e(telemetry.get('token_filename', '-'))}</span>",
+        ),
+    ]
+    out += _kv_table(rows)
+    if telemetry.get("real_leaked_ip") == SAMPLE_LEAKED_IP:
+        out += "<p class='note'>Data di atas berasal dari beacon simulasi (data contoh), bukan perangkat sungguhan.</p>"
+    return out
+
+
+def _section_ot(blocks: List[Dict[str, Any]]) -> str:
+    out = "<h2>3. Sabotase OT/SCADA</h2>"
+    if not _has(blocks, "OT_SCADA_SABOTAGE"):
+        return (
+            out + "<p class='muted'>Tidak ada percobaan sabotase OT pada sesi ini.</p>"
+        )
+    return out + (
+        "<table><tr><th>Yang dilihat penyerang</th><th>Kondisi asli</th></tr>"
+        "<tr><td><span class='alert'>115.8°C · overheat kritis</span><br/>Pendingin tampak dimatikan.</td>"
+        "<td><span class='safe'>34.0°C · normal</span><br/>Perintah tidak pernah sampai ke radar.</td></tr></table>"
+    )
+
+
+def _section_mitre(rows: Optional[Sequence[Sequence[str]]]) -> str:
+    out = "<h2>4. Pemetaan MITRE ATT&amp;CK</h2>"
+    if not rows:
+        return (
+            out
+            + "<p class='muted'>Belum ada teknik yang terpetakan untuk sesi ini.</p>"
+        )
+    body = "".join(
+        f"<tr><td class='mono'>{_e(r[0])}</td><td>{_e(r[1])}</td><td>{_e(r[2])}</td></tr>"
+        for r in rows
+    )
+    return (
+        out + f"<table><tr><th>ID</th><th>Teknik</th><th>Taktik</th></tr>{body}</table>"
+    )
+
+
+def _section_ledger(
+    blocks: List[Dict[str, Any]], chain_status: str, tampered: Optional[int]
+) -> str:
+    valid = chain_status == "VALID_IMMUTABLE"
+    banner = (
+        "<div class='banner'><span class='safe'>Rantai bukti utuh.</span> "
+        "Setiap blok terkunci hash SHA-256 dan menunjuk hash blok sebelumnya.</div>"
+        if valid
+        else f"<div class='banner-alert'><span class='alert'>Rantai bukti rusak: Blok #{_e(tampered)} dimanipulasi.</span> "
+        "Hash blok itu tidak cocok lagi dengan isinya.</div>"
+    )
+    rows = []
+    for b in blocks:
+        idx = b.get("block_index", 0)
+        bad = tampered is not None and idx == tampered
+        ts = _e(str(b.get("timestamp", ""))[:19].replace("T", " "))
+        rows.append(
+            f"<tr class='{'bad' if bad else ''}'><td class='mono'>#{_e(idx)}</td><td class='mono'>{ts}</td>"
+            f"<td>{_e(b.get('action_summary', ''))}<br/><span class='mono muted'>{_e(b.get('current_hash', ''))}</span></td></tr>"
+        )
+    return (
+        "<h2>5. Ledger bukti forensik (SHA-256)</h2>"
+        f"{banner}"
+        f"<table><tr><th>Blok</th><th>Waktu (UTC)</th><th>Aksi dan hash</th></tr>{''.join(rows)}</table>"
+        "<p class='note'>Rumus segel: SHA256(index | waktu | sesi | aksi | hash sebelumnya). "
+        "Ditampilkan: blok genesis dan blok milik sesi ini.</p>"
+    )
+
+
+def _section_vaccine(
+    blocks: List[Dict[str, Any]], telemetry: Optional[Dict[str, Any]]
+) -> str:
+    out = "<h2>6. Vaksin ke Kodam</h2>"
+    if not _has(blocks, "HERD_IMMUNITY_BROADCAST"):
+        return out + "<p class='muted'>Vaksin belum disebarkan pada sesi ini.</p>"
+    ip = (telemetry or {}).get("real_leaked_ip") or SAMPLE_LEAKED_IP
+    return out + (
+        "<p>Rule blokir dibuat otomatis dari pola serangan dan IP asli penyerang, lalu disebarkan ke 15 Kodam (simulasi).</p>"
+        f"<div class='code'><span class='mono'>iptables -A INPUT -s {_e(ip)}/32 -m string --algo bm "
+        f"--string \"OR '1'='1\" -j DROP</span><br/>"
+        '<span class=\'mono\'>SecRule ARGS "@detectSQLi" "id:990014,phase:2,deny,status:403"</span></div>'
+    )
+
+
+def _section_sign() -> str:
+    return (
+        "<h2>7. Pengesahan</h2>"
+        "<table class='sign'><tr>"
+        "<td>Disusun oleh<br/><br/><br/>______________________<br/><span class='muted'>Nama / NRP</span></td>"
+        "<td>Mengetahui<br/><br/><br/>______________________<br/><span class='muted'>Nama / Jabatan</span></td>"
+        "</tr></table>"
+    )
+
+
+def _decorate(pdf: bytes, doc_number: str) -> bytes:
+    """Kop dan nomor halaman di setiap halaman (Story tidak punya header/footer berulang)."""
+    with pymupdf.open("pdf", pdf) as doc:
+        total = doc.page_count
+        for page in doc:
+            w = page.rect.width
+            page.insert_text(
+                (48, 34),
+                "CAKRA-DECOY 2.0 · Laporan Forensik Digital (DFIR)",
+                fontsize=8,
+                fontname="hebo",
+                color=pymupdf.pdfcolor["black"],
+            )
+            label = "DOKUMEN SIMULASI · Kartika Cyber Hackathon 2026"
+            page.insert_text(
+                (w - 48 - pymupdf.get_text_length(label, "helv", 8), 34),
+                label,
+                fontsize=8,
+                fontname="helv",
+                color=(0.78, 0.16, 0.16),
+            )
+            page.draw_line((48, 42), (w - 48, 42), color=(0.87, 0.89, 0.92), width=0.6)
+            y = page.rect.height - 32
+            page.draw_line(
+                (48, y - 10), (w - 48, y - 10), color=(0.87, 0.89, 0.92), width=0.6
+            )
+            page.insert_text(
+                (48, y),
+                doc_number,
+                fontsize=7.5,
+                fontname="helv",
+                color=(0.29, 0.33, 0.39),
+            )
+            num = f"Halaman {page.number + 1} dari {total}"
+            page.insert_text(
+                (w - 48 - pymupdf.get_text_length(num, "helv", 7.5), y),
+                num,
+                fontsize=7.5,
+                fontname="helv",
+                color=(0.29, 0.33, 0.39),
+            )
+        doc.subset_fonts()
+        return doc.tobytes(deflate=True, garbage=3)
 
 
 def generate_military_dfir_pdf(
@@ -12,327 +316,48 @@ def generate_military_dfir_pdf(
     tampered_block_index: Optional[int] = None,
     custom_mitre_rows: Optional[List[Any]] = None,
 ) -> bytes:
-    """
-    Generates an authentic, high-impact tactical Military Incident Report in PDF format.
-    Returns the binary PDF content (bytes).
-    """
-    # 1. Fallback / Default Data Setup for demo resilience
+    """Bangun laporan DFIR (PDF, A4) untuk satu sesi. Mengembalikan bytes PDF."""
     now = datetime.datetime.now()
-    doc_date = now.strftime("%d %B %Y").upper()
-    doc_time = now.strftime("%H:%M:%S WIB")
-    doc_number = f"DFIR-PUSSIBERAD/CAKRA-{now.year}/{now.strftime('%m%d-%H%M')}"
-
+    doc_number = f"DFIR/CAKRA-{now:%Y}/{now:%m%d-%H%M}"
     session = session_data or {}
-    session_id = session.get("session_id", "SES-KDM03-9941A")
-    threat_score = session.get("threat_score", 96)
-    routing_mode = session.get("routing_mode", "DECOY_MIRROR_TWIN")
-    attacker_prof = session.get("attacker_profile") or {}
-    actor_class = attacker_prof.get("actor_classification", "STATE-SPONSORED APT")
-    if hasattr(actor_class, "value"):
-        actor_class = actor_class.value
-    primary_intent = attacker_prof.get("primary_intent", "OT_RADAR_SABOTAGE_AND_SATCOM_EXFILTRATION")
-    confidence_pct = attacker_prof.get("confidence_pct", 92)
-    chain_is_valid = chain_status == "VALID_IMMUTABLE"
+    sid = str(session.get("session_id") or "-")
+    blocks = _session_blocks(ledger_blocks or [], session.get("session_id"))
 
-    telemetry = telemetry_data or {}
-    apparent_ip = telemetry.get("apparent_proxy_ip", "185.220.101.44 (Tor/Relay Proxy)")
-    real_ip = telemetry.get("real_leaked_ip", "103.147.12.89 (Indonesian ISP / Leaked)")
-    geo = telemetry.get("geo_location", {})
-    geo_str = f"{geo.get('city', 'Jakarta Selatan')}, {geo.get('country', 'ID')} (Lat: {geo.get('lat', -6.2146)}, Lng: {geo.get('lng', 106.8451)})"
-    fingerprint = telemetry.get("device_fingerprint", {})
-    gpu_str = fingerprint.get("gpu_renderer", "ANGLE (NVIDIA GeForce RTX 4070 Laptop GPU, OpenGL 4.5)")
-    os_str = fingerprint.get("os", "Linux x86_64 (Kali GNU/Linux Rolling 2026)")
-    canvas_hash = fingerprint.get("canvas_hash", "e4b89100a2c7f91d")
-
-    blocks = ledger_blocks or [
-        {
-            "block_index": 0,
-            "timestamp": "2026-10-27T14:48:00Z",
-            "action_summary": "GENESIS: CAKRA-DECOY 2.0 FORENSIC CHAIN INITIALIZED",
-            "current_hash": "0000a9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f",
-        },
-        {
-            "block_index": 1,
-            "timestamp": "2026-10-27T14:50:12Z",
-            "action_summary": "INITIAL_INFILTRATION: SQLi Auth Bypass on Logistics Portal",
-            "current_hash": "1a7c3b9f11a42e8871c0091e234b65d902a117c89b3214f665a098bc12345678",
-        },
-        {
-            "block_index": 2,
-            "timestamp": "2026-10-27T14:51:30Z",
-            "action_summary": "OT_SCADA_SABOTAGE: Radar Cooling Overridden to 115.8°C",
-            "current_hash": "2f8b09187a4c7e659b2feaa1c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
-        },
-        {
-            "block_index": 3,
-            "timestamp": "2026-10-27T14:53:05Z",
-            "action_summary": "HONEYTOKEN_TRIGGER: WebRTC Leak from Akses_Darurat_Satelit_TNI.html",
-            "current_hash": "3c7b9f11a42e8871c0091e234b65d902a117c89b3214f665a098bc1234567890",
-        },
-    ]
-
-    # 2. Document Creation (A4: 595 x 842 points)
-    doc = pymupdf.open()
-
-    # Color Palette: Military C4ISR Theme
-    c_dark_navy = (0.05, 0.08, 0.15)
-    c_gold = (0.75, 0.60, 0.20)
-    c_red = (0.80, 0.15, 0.15)
-    c_green = (0.05, 0.65, 0.35)
-    c_gray = (0.35, 0.40, 0.45)
-    c_light_bg = (0.95, 0.96, 0.98)
-    c_white = (1.0, 1.0, 1.0)
-    c_black = (0.05, 0.05, 0.05)
-
-    # PAGE 1: Executive Summary, Attribution & OT Sabotage Telemetry
-    page1 = doc.new_page(width=595, height=842)
-
-    # Double Border (Outer & Inner)
-    page1.draw_rect(pymupdf.Rect(20, 20, 575, 822), color=c_dark_navy, width=1.5)
-    page1.draw_rect(pymupdf.Rect(24, 24, 571, 818), color=c_gold, width=0.75)
-
-    # Top Secret Stamp / Header
-    page1.draw_rect(pymupdf.Rect(25, 25, 570, 48), color=c_red, fill=c_red)
-    page1.insert_text(
-        pymupdf.Point(145, 42),
-        "KLASIFIKASI: SANGAT RAHASIA // TOP SECRET // KARTIKA CYBER SHIELD",
-        fontsize=10,
-        color=c_white,
-        fontname="helv",
-    )
-    page1.insert_text(
-        pymupdf.Point(185, 56),
-        "HANYA UNTUK KEPENTINGAN OPERASI PUSSIBERAD TNI AD",
-        fontsize=8,
-        color=c_white,
-        fontname="helv",
-    )
-
-    # Official Kop Surat
-    page1.insert_text(
-        pymupdf.Point(155, 90),
-        "TENTARA NASIONAL INDONESIA ANGKATAN DARAT",
-        fontsize=13,
-        color=c_dark_navy,
-        fontname="helv",
-    )
-    page1.insert_text(
-        pymupdf.Point(215, 105),
-        "PUSAT SIBER TNI AD (PUSSIBERAD)",
-        fontsize=12,
-        color=c_dark_navy,
-        fontname="helv",
-    )
-    page1.insert_text(
-        pymupdf.Point(135, 120),
-        "DETASEMEN TANGGAP INSIDEN SIBER & FORENSIK DIGITAL (CSIRT MILITER)",
-        fontsize=9,
-        color=c_gray,
-        fontname="helv",
-    )
-    page1.draw_line(pymupdf.Point(40, 128), pymupdf.Point(555, 128), color=c_dark_navy, width=1.5)
-    page1.draw_line(pymupdf.Point(40, 131), pymupdf.Point(555, 131), color=c_gold, width=0.75)
-
-    # Document Metadata Box
-    page1.draw_rect(pymupdf.Rect(40, 140, 555, 185), color=c_gray, fill=c_light_bg, width=0.5)
-    page1.insert_text(pymupdf.Point(50, 156), f"NOMOR BERKAS  : {doc_number}", fontsize=8.5, color=c_black, fontname="courier")
-    page1.insert_text(pymupdf.Point(50, 170), f"TANGGAL CETAK : {doc_date} — {doc_time}", fontsize=8.5, color=c_black, fontname="courier")
-    page1.insert_text(pymupdf.Point(340, 156), f"ID SESI ANCAMAN : {session_id}", fontsize=8.5, color=c_black, fontname="courier")
-    page1.insert_text(pymupdf.Point(340, 170), f"STATUS SISTEM   : DECOY ACTIVE (100% AMAN)", fontsize=8.5, color=c_green, fontname="courier")
-
-    # Section 1: Ringkasan Eksekutif
-    page1.draw_rect(pymupdf.Rect(40, 195, 555, 215), color=c_dark_navy, fill=c_dark_navy)
-    page1.insert_text(pymupdf.Point(50, 209), "1. RINGKASAN EKSEKUTIF INSIDEN PERTAHANAN AKTIF", fontsize=10, color=c_white, fontname="helv")
-
-    exec_summary_text = (
-        f"Pada {doc_date}, sistem pertahanan otonom CAKRA-DECOY 2.0 mendeteksi dan mencegat upaya peretasan "
-        f"kritis terhadap infrastruktur konvergensi IT/OT Komando Daerah Militer (Kodam). Vektor serangan berupa "
-        f"SQL Injection pada Portal Logistik berhasil dibelokkan secara senyap (< 5ms) ke dalam lingkungan Chameleon "
-        f"AI Mirror-Twin. Sistem asli TNI AD beroperasi secara nominal tanpa gangguan, sementara seluruh aktivitas penyerang "
-        f"berhasil disadap, direkam secara kriptografis, dan dilacak balik ke perangkat fisik lawan."
-    )
-    page1.insert_textbox(pymupdf.Rect(45, 222, 550, 275), exec_summary_text, fontsize=8.5, color=c_black, fontname="helv")
-
-    # Section 2: Profil & Pelacakan Balik Penyerang (Counter-Intel)
-    page1.draw_rect(pymupdf.Rect(40, 280, 555, 300), color=c_dark_navy, fill=c_dark_navy)
-    page1.insert_text(pymupdf.Point(50, 294), "2. ATRIBUSI & DATA PELACAKAN BALIK PENYERANG (HONEYTOKEN BOOMERANG)", fontsize=10, color=c_white, fontname="helv")
-
-    # Table for Attacker Info
-    y_start = 308
-    vec_label = telemetry.get("vector_type", "WEBRTC_STUN_BEACON")
-    intel_rows = [
-        ("Klasifikasi Ancaman", f"{actor_class} (Tingkat Keyakinan: {confidence_pct}%)", c_red),
-        ("Skor Ancaman / Severity", f"{threat_score} / 100 — CRITICAL LEVEL 4 RESTRICTED", c_red),
-        ("IP Samaran (Proxy/Tor)", apparent_ip[:58], c_black),
-        ("IP Fisik Asli (Leaked)", f"{real_ip} (VIA {vec_label})"[:58], c_red),
-        ("Estimasi Geolokasi IP", geo_str[:58], c_black),
-        ("Hardware / GPU Renderer", gpu_str[:58], c_black),
-        ("Sistem Operasi / Target", os_str[:58], c_black),
-        ("Canvas Hardware Hash", canvas_hash[:58], c_black),
-    ]
-
-    for label, val, val_color in intel_rows:
-        page1.draw_rect(pymupdf.Rect(40, y_start, 200, y_start + 18), color=c_gray, fill=c_light_bg, width=0.5)
-        page1.draw_rect(pymupdf.Rect(200, y_start, 555, y_start + 18), color=c_gray, fill=c_white, width=0.5)
-        page1.insert_text(pymupdf.Point(46, y_start + 12), label, fontsize=8, color=c_dark_navy, fontname="helv")
-        page1.insert_text(pymupdf.Point(206, y_start + 12), val, fontsize=8, color=val_color, fontname="courier")
-        y_start += 18
-
-    # Section 3: Telemetri Deception SCADA / OT
-    y_start += 10
-    page1.draw_rect(pymupdf.Rect(40, y_start, 555, y_start + 20), color=c_dark_navy, fill=c_dark_navy)
-    page1.insert_text(pymupdf.Point(50, y_start + 14), "3. ANALISIS SABOTASE IT/OT (PERBANDINGAN SISTEM ASLI VS ILUSI DECOY)", fontsize=10, color=c_white, fontname="helv")
-    y_start += 25
-
-    # Left Box: Decoy Illusion
-    page1.draw_rect(pymupdf.Rect(40, y_start, 290, y_start + 70), color=c_red, fill=(0.99, 0.92, 0.92), width=1)
-    page1.insert_text(pymupdf.Point(50, y_start + 16), "PADA MONITOR PENYERANG (RUANG ILUSI):", fontsize=8.5, color=c_red, fontname="helv")
-    page1.insert_text(pymupdf.Point(50, y_start + 32), "• Status Radar   : OVERHEAT CRITICAL (115.8°C)", fontsize=8, color=c_black, fontname="courier")
-    page1.insert_text(pymupdf.Point(50, y_start + 46), "• Pendingin      : OVERRIDDEN / FORCED OFF", fontsize=8, color=c_black, fontname="courier")
-    page1.insert_text(pymupdf.Point(50, y_start + 60), "• Dampak Ilusi   : Penyerang berasumsi radar lumpuh", fontsize=8, color=c_black, fontname="courier")
-
-    # Right Box: Real Military System
-    page1.draw_rect(pymupdf.Rect(305, y_start, 555, y_start + 70), color=c_green, fill=(0.92, 0.99, 0.94), width=1)
-    page1.insert_text(pymupdf.Point(315, y_start + 16), "PADA SISTEM ASLI SATUAN TNI AD (REAL ASSET):", fontsize=8.5, color=c_green, fontname="helv")
-    page1.insert_text(pymupdf.Point(315, y_start + 32), "• Suhu Radar Riil: 34.0°C (NOMINAL / NORMAL)", fontsize=8, color=c_black, fontname="courier")
-    page1.insert_text(pymupdf.Point(315, y_start + 46), "• Sirkulasi OT   : Beroperasi Penuh Tanpa Interupsi", fontsize=8, color=c_black, fontname="courier")
-    page1.insert_text(pymupdf.Point(315, y_start + 60), "• Keamanan Fisik : 100% TERISOLASI & TERLINDUNGI", fontsize=8, color=c_black, fontname="courier")
-
-    # Section 4: MITRE ATT&CK Mapping
-    y_start += 82
-    page1.draw_rect(pymupdf.Rect(40, y_start, 555, y_start + 20), color=c_dark_navy, fill=c_dark_navy)
-    page1.insert_text(pymupdf.Point(50, y_start + 14), "4. PEMETAAN TAKTIK & TEKNIK MITRE ATT&CK (ENTERPRISE & ICS/OT)", fontsize=10, color=c_white, fontname="helv")
-    y_start += 25
-
-    mitre_headers = [("KODE TAKTIK", 80), ("NAMA TEKNIK MITRE", 190), ("KATEGORI DOMAIN", 130), ("STATUS DETEKSI", 115)]
-    cur_x = 40
-    for h_name, w in mitre_headers:
-        page1.draw_rect(pymupdf.Rect(cur_x, y_start, cur_x + w, y_start + 16), color=c_gray, fill=c_light_bg, width=0.5)
-        page1.insert_text(pymupdf.Point(cur_x + 6, y_start + 11), h_name, fontsize=7.5, color=c_dark_navy, fontname="helv")
-        cur_x += w
-    y_start += 16
-
-    default_mitre_rows = [
-        ("T1190", "Exploit Public-Facing Application", "Initial Access (IT)", "DICEGAT & DIBELOKKAN"),
-        ("T0855", "Unauthorized Command Message", "Inhibit Response (OT/ICS)", "DIJEBAK DI PANEL PALSU"),
-        ("T1059.004", "Unix Shell Command Execution", "Execution (Linux VFS)", "DISADAP LIVE OLEH AI"),
-        ("T1552.001", "Credentials In Files (.env & Satcom)", "Credential Access", "PELACAK BUMERANG AKTIF"),
-    ]
-    mitre_rows = (custom_mitre_rows[:4] if custom_mitre_rows else None) or default_mitre_rows
-    for m_id, m_name, m_cat, m_stat in mitre_rows:
-        cur_x = 40
-        row_vals = [m_id, m_name, m_cat, m_stat]
-        for idx, (h_name, w) in enumerate(mitre_headers):
-            page1.draw_rect(pymupdf.Rect(cur_x, y_start, cur_x + w, y_start + 15), color=c_gray, fill=c_white, width=0.5)
-            val = row_vals[idx]
-            color = c_green if idx == 3 else c_black
-            page1.insert_text(pymupdf.Point(cur_x + 6, y_start + 11), val[:34], fontsize=7.5, color=color, fontname="courier" if idx == 0 else "helv")
-            cur_x += w
-        y_start += 15
-
-    # Footer Page 1
-    page1.insert_text(pymupdf.Point(40, 810), "CAKRA-DECOY 2.0 // KARTIKA CYBER HACKATHON 2026 // PUSSIBERAD TNI AD", fontsize=7.5, color=c_gray, fontname="helv")
-    page1.insert_text(pymupdf.Point(500, 810), "HALAMAN 1 DARI 2", fontsize=7.5, color=c_gray, fontname="helv")
-
-    # PAGE 2: Forensic Ledger (SHA-256), Herd-Immunity & Military Signatures
-    page2 = doc.new_page(width=595, height=842)
-    page2.draw_rect(pymupdf.Rect(20, 20, 575, 822), color=c_dark_navy, width=1.5)
-    page2.draw_rect(pymupdf.Rect(24, 24, 571, 818), color=c_gold, width=0.75)
-
-    # Top Header Page 2
-    page2.draw_rect(pymupdf.Rect(25, 25, 570, 35), color=c_dark_navy, fill=c_dark_navy)
-    page2.insert_text(
-        pymupdf.Point(135, 47),
-        "LAMPIRAN BUKTI HUKUM FORENSIK DIGITAL & RANTAI KRIPTOGRAFI",
-        fontsize=10,
-        color=c_white,
-        fontname="helv",
-    )
-
-    y_start2 = 75
-    # Section 5: Cryptographic Chain of Custody
-    page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 20), color=c_dark_navy, fill=c_dark_navy)
-    page2.insert_text(pymupdf.Point(50, y_start2 + 14), "5. BUKTI HUKUM BERANTAI SHA-256 (IMMUTABLE FORENSIC LEDGER)", fontsize=10, color=c_white, fontname="helv")
-    y_start2 += 25
-
-    # Ledger Verification Badge — cerminkan status rantai nyata
-    badge_color = c_green if chain_is_valid else c_red
-    badge_fill = (0.92, 0.99, 0.94) if chain_is_valid else (0.99, 0.92, 0.92)
-    badge_text = (
-        "STATUS KEABSAHAN HUKUM : VALID_IMMUTABLE (SEMPURNA)"
-        if chain_is_valid
-        else f"STATUS KEABSAHAN HUKUM : TAMPERED_CRITICAL (ANOMALI PADA BLOK #{tampered_block_index})"
-    )
-    page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 35), color=badge_color, fill=badge_fill, width=1)
-    page2.insert_text(pymupdf.Point(50, y_start2 + 15), badge_text, fontsize=9, color=badge_color, fontname="helv")
-    page2.insert_text(pymupdf.Point(50, y_start2 + 27), "Formula Verifikasi Segel: SHA256(BlockIndex || Timestamp || SessionID || ActionSummary || PrevHash)", fontsize=7.5, color=c_black, fontname="courier")
-    y_start2 += 45
-
-    # Ledger Blocks Table
-    for blk in blocks[:6]:  # Show up to 6 blocks
-        idx = blk.get("block_index", 0)
-        ts = blk.get("timestamp", now.isoformat())[:19]
-        summary = blk.get("action_summary", "Aktivitas Terekam")
-        cur_hash = blk.get("current_hash", "0" * 64)
-
-        blk_tampered = tampered_block_index is not None and idx == tampered_block_index
-        row_fill = (0.99, 0.92, 0.92) if blk_tampered else c_light_bg
-        page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 38), color=c_gray, fill=row_fill, width=0.5)
-        page2.insert_text(pymupdf.Point(48, y_start2 + 13), f"BLOK #{idx} [{ts} UTC] - {summary}", fontsize=8, color=c_dark_navy, fontname="helv")
-        page2.insert_text(pymupdf.Point(48, y_start2 + 25), f"HASH SHA-256: {cur_hash}", fontsize=7, color=c_black, fontname="courier")
-        blk_status = (
-            "STATUS INTEGRITAS: [X TAMPERED - SEGEL RUSAK]"
-            if blk_tampered
-            else "STATUS INTEGRITAS: [VALID & TERSEGEL]"
+    body = (
+        "<p class='eyebrow'>LAPORAN FORENSIK DIGITAL · DOKUMEN SIMULASI</p>"
+        "<h1>Laporan insiden: penyerang dibelokkan dan dibongkar</h1>"
+        "<p class='lead'>Disusun otomatis oleh CAKRA-DECOY 2.0 dari rekaman satu sesi penyerang. "
+        "Dokumen simulasi untuk demonstrasi Kartika Cyber Hackathon 2026, bukan dokumen resmi.</p>"
+        + _kv_table(
+            [
+                ("Nomor laporan", f"<span class='mono'>{_e(doc_number)}</span>"),
+                ("Dibuat", _e(f"{now:%d-%m-%Y %H:%M} WIB")),
+                ("ID sesi", f"<span class='mono'>{_e(sid)}</span>"),
+                (
+                    "Status rantai bukti",
+                    "<span class='safe'>Utuh</span>"
+                    if chain_status == "VALID_IMMUTABLE"
+                    else f"<span class='alert'>Rusak (Blok #{_e(tampered_block_index)})</span>",
+                ),
+            ]
         )
-        page2.insert_text(pymupdf.Point(48, y_start2 + 34), blk_status, fontsize=7, color=(c_red if blk_tampered else c_green), fontname="helv")
-        y_start2 += 42
-
-    # Section 6: Tactical Herd-Immunity Vaccine Deployed
-    y_start2 += 10
-    page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 20), color=c_dark_navy, fill=c_dark_navy)
-    page2.insert_text(pymupdf.Point(50, y_start2 + 14), "6. DISKRESI PERTAHANAN: VAKSIN HERD-IMMUNITY KODAM SE-INDONESIA", fontsize=10, color=c_white, fontname="helv")
-    y_start2 += 25
-
-    vaccine_text = (
-        "Berdasarkan pola tanda tangan serangan di atas, CAKRA-DECOY 2.0 telah menerbitkan dan menyebarkan "
-        "aturan kekebalan otonom ke 15 Komando Daerah Militer (Kodam Jaya, Kodam III/Siliwangi, Kodam IV/Diponegoro, "
-        "Kodam V/Brawijaya, hingga Kodam XVII/Cenderawasih):\n"
-        f"• Iptables Rule : iptables -A INPUT -s {real_ip.split()[0]}/32 -j DROP\n"
-        "• ModSecurity   : SecRule ARGS \"@detectSQLi\" \"id:990014,phase:2,deny,status:403,msg:'CAKRA Immuno-Patch'\"\n"
-        "• Status Satuan : 15 KODAM KEBAL & TERPROTEKSI DALAM < 1 DETIK."
+        + _section_summary(sid, session, blocks, telemetry_data)
+        + _section_attacker(session, telemetry_data)
+        + _section_ot(blocks)
+        + _section_mitre(custom_mitre_rows)
+        + _section_ledger(blocks, chain_status, tampered_block_index)
+        + _section_vaccine(blocks, telemetry_data)
+        + _section_sign()
     )
-    page2.draw_rect(pymupdf.Rect(40, y_start2, 555, y_start2 + 75), color=c_gray, fill=c_light_bg, width=0.5)
-    page2.insert_textbox(pymupdf.Rect(48, y_start2 + 6, 545, y_start2 + 70), vaccine_text, fontsize=7.5, color=c_black, fontname="courier")
-    y_start2 += 85
 
-    # Section 7: Military Formal Signatures
-    y_start2 += 10
-    page2.insert_text(pymupdf.Point(50, y_start2 + 10), "Dibuat dan Diverifikasi oleh:", fontsize=8.5, color=c_black, fontname="helv")
-    page2.insert_text(pymupdf.Point(360, y_start2 + 10), "Mengetahui & Menyetujui:", fontsize=8.5, color=c_black, fontname="helv")
-
-    page2.insert_text(pymupdf.Point(50, y_start2 + 24), "PERWIRA JAGA SOC PUSSIBERAD", fontsize=8.5, color=c_dark_navy, fontname="helv")
-    page2.insert_text(pymupdf.Point(360, y_start2 + 24), "KOMANDAN DETASEMEN SIBER KODAM", fontsize=8.5, color=c_dark_navy, fontname="helv")
-
-    # Stamp / Signature Placeholder Box
-    page2.draw_rect(pymupdf.Rect(50, y_start2 + 30, 160, y_start2 + 75), color=c_gray, fill=c_white, width=0.5)
-    page2.insert_text(pymupdf.Point(60, y_start2 + 55), "[ TANDA TANGAN DIGITAL ]", fontsize=7.5, color=c_green, fontname="courier")
-    page2.insert_text(pymupdf.Point(60, y_start2 + 67), "KUNCI: CAKRA-SHA256-CERT", fontsize=6.5, color=c_gray, fontname="courier")
-
-    page2.draw_rect(pymupdf.Rect(360, y_start2 + 30, 470, y_start2 + 75), color=c_gray, fill=c_white, width=0.5)
-    page2.insert_text(pymupdf.Point(370, y_start2 + 55), "[ PENGESAHAN KOMANDAN ]", fontsize=7.5, color=c_green, fontname="courier")
-    page2.insert_text(pymupdf.Point(370, y_start2 + 67), "STATUS: DISAHKAN UNTUK DFIR", fontsize=6.5, color=c_gray, fontname="courier")
-
-    page2.insert_text(pymupdf.Point(50, y_start2 + 90), "LETTU INF / KAPTEN CHB", fontsize=8, color=c_black, fontname="helv")
-    page2.insert_text(pymupdf.Point(50, y_start2 + 100), "NRP: 11180029310892", fontsize=7.5, color=c_gray, fontname="courier")
-
-    page2.insert_text(pymupdf.Point(360, y_start2 + 90), "KOLONEL INF / BRIGJEN TNI", fontsize=8, color=c_black, fontname="helv")
-    page2.insert_text(pymupdf.Point(360, y_start2 + 100), "PANGKAT / JABATAN RESMI", fontsize=7.5, color=c_gray, fontname="courier")
-
-    # Footer Page 2
-    page2.insert_text(pymupdf.Point(40, 810), "CAKRA-DECOY 2.0 // KARTIKA CYBER HACKATHON 2026 // PUSSIBERAD TNI AD", fontsize=7.5, color=c_gray, fontname="helv")
-    page2.insert_text(pymupdf.Point(500, 810), "HALAMAN 2 DARI 2", fontsize=7.5, color=c_gray, fontname="helv")
-
-    pdf_bytes = doc.tobytes()
-    doc.close()
-    return pdf_bytes
+    story = pymupdf.Story(html=f"<body>{body}</body>", user_css=CSS)
+    buffer = io.BytesIO()
+    writer = pymupdf.DocumentWriter(buffer)
+    more = True
+    while more:
+        device = writer.begin_page(PAGE)
+        more, _ = story.place(CONTENT)
+        story.draw(device)
+        writer.end_page()
+    writer.close()
+    return _decorate(buffer.getvalue(), doc_number)

@@ -531,7 +531,7 @@ async def export_pdf(session_token: str | None = None) -> Response:
         tampered_block_index=bad_idx,
         custom_mitre_rows=mitre_rows,
     )
-    filename = f"Laporan_DFIR_PUSSIBERAD_{session_token or 'INCIDENT'}.pdf"
+    filename = f"Laporan_DFIR_CAKRA-DECOY_{session_token or 'sesi'}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
