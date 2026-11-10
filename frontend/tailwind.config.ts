@@ -31,33 +31,11 @@ const config: Config = {
           line: "#DDE2EA",
           alarm: "#C62828",
         },
-        // legacy: dihapus di task 11
-        paper: "#f4f3ee",
-        surface: "#ffffff",
-        "surface-2": "#faf9f5",
-        border: "#e7e5dc",
-        "ink-faint": "#a7adb7",
-        accent: "#0e7a54",
-        "accent-deep": "#0a5e41",
-        "accent-weak": "#e3efe8",
-        "accent-line": "#bfe0cf",
-        warn: "#a9741a",
-        "warn-weak": "#f6ecd4",
-        danger: "#b23a3a",
-        "danger-weak": "#f6e1de",
-        info: "#2c5e8a",
-        "info-weak": "#e2ebf3",
       },
       fontFamily: {
         ui: ["var(--font-ui)", "ui-sans-serif", "system-ui", "sans-serif"],
         data: ["var(--font-data)", "ui-monospace", "Consolas", "monospace"],
         gov: ["var(--font-gov)", "ui-sans-serif", "system-ui", "sans-serif"],
-        // legacy: dihapus di task 11
-        mono: ["var(--font-data)", "ui-monospace", "monospace"],
-        sans: ["var(--font-ui)", "ui-sans-serif", "sans-serif"],
-      },
-      letterSpacing: {
-        milli: "0.18em",
       },
       transitionDuration: {
         DEFAULT: "200ms",

@@ -1,175 +1,89 @@
 import Link from "next/link";
-import { Icon } from "@/lib/icon";
-
-export const metadata = {
-  title: "CAKRA-DECOY 2.0 · Launcher",
-  description:
-    "Cyber Autonomous Kernel-less Routing & Active Deception System · PUSSIBERAD Kartika Cyber Hackathon 2026.",
-};
-
-const SPECS = [
-  { k: "Intersepsi payload", v: "< 5 ms", icon: "pulse" },
-  { k: "Terminal VFS stateful", v: "< 2 ms", icon: "terminal-window" },
-  { k: "Mode AI", v: "Groq · Gemini · Ollama", icon: "cpu" },
-  { k: "Jejak forensik", v: "SHA-256 hash-chain", icon: "seal-check" },
-];
-
-const PILLARS = [
-  {
-    icon: "crosshair-simple",
-    title: "Opaque Silent Interceptor",
-    body: "Deteksi SQLi, RCE, path traversal, dan anomali SCADA, lalu belokkan sesi penyerang ke Mirror-Twin tanpa membocorkan status decoy di DevTools.",
-  },
-  {
-    icon: "terminal-window",
-    title: "Chameleon AI Mirror-Twin",
-    body: "Web-SSH hibrida: VFS deterministik instan, context-shell LLM, dan static fallback yang konsisten walau jaringan panggung terputus.",
-  },
-  {
-    icon: "fingerprint",
-    title: "Boomerang Honeytoken",
-    body: "Umpan tiga jalur (HTML WebRTC, CLI canary JWT, source bait) membongkar IP asli, perangkat keras, dan geolokasi penyerang.",
-  },
-];
+import { Icon } from "@/components/ui/Icon";
+import { STEPS } from "@/lib/attack-steps";
 
 export default function Home() {
   return (
-    <main className="min-h-screen">
-      {/* Pita navy (porsi sekunder 20%) */}
-      <div className="bg-ink text-white/80">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-2.5 font-mono text-[10px] tracking-milli">
-          <span className="text-white">PUSSIBERAD · PUSAT SIBER TNI AD</span>
-          <span className="hidden text-white/55 sm:inline">KARTIKA CYBER SHIELD · KATEGORI 02 PENANGKALAN</span>
-          <span className="text-accent-line">RAHASIA</span>
+    <main className="flex min-h-screen flex-col bg-bg">
+      <header className="border-b border-line">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
+          <p className="text-sm font-semibold text-ink-soft">
+            PUSSIBERAD · Kartika Cyber Hackathon 2026
+          </p>
+          <p className="text-sm text-ink-mute">
+            Kategori 02 · Defensive Shield
+          </p>
         </div>
-      </div>
+      </header>
 
-      <div className="mx-auto max-w-6xl px-6 pb-20 pt-14">
-        {/* Hero */}
-        <div className="flex flex-col gap-12 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent-line bg-accent-weak px-3 py-1 font-mono text-[11px] tracking-milli text-accent-deep">
-              <span className="dot dot-live" />
-              DECEPTION GATEWAY · AKTIF
-            </div>
-            <h1 className="mt-6 text-5xl font-semibold leading-[1.02] tracking-tight text-ink sm:text-6xl">
-              CAKRA<span className="text-accent">·</span>DECOY
-              <span className="ml-3 align-top text-xl font-medium text-ink-mute">v2.0</span>
-            </h1>
-            <p className="mt-3 font-mono text-xs tracking-[0.12em] text-ink-mute">
-              CYBER AUTONOMOUS KERNEL-LESS ROUTING &amp; ACTIVE DECEPTION SYSTEM
-            </p>
-            <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-ink-soft">
-              Pertahanan siber yang tidak memblokir musuh di depan pintu. Ia menjebak sesi
-              penyerang ke ruang ilusi AI, menyadap seluruh taktiknya, memancing identitas
-              aslinya keluar, lalu menyebarkan vaksin ke seluruh Kodam dalam hitungan detik.
-            </p>
-          </div>
+      <section className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:py-20">
+        <p className="text-sm font-semibold text-signal">
+          CAKRA-DECOY 2.0 · Active Deception Gateway
+        </p>
+        <h1 className="mt-4 max-w-4xl text-4xl font-extrabold leading-[1.05] tracking-tight text-ink sm:text-6xl">
+          Penyerang mengira dia menang, padahal dia sedang dijebak dan ditonton.
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-soft">
+          CAKRA-DECOY tidak memblokir penyerang di depan pintu. Ia membelokkan
+          penyerang ke portal tiruan, menyadap setiap langkahnya, membongkar
+          identitasnya, lalu menyebarkan vaksin ke seluruh Kodam.
+        </p>
 
-          {/* Readout spesifikasi */}
-          <div className="w-full max-w-sm">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="eyebrow">Parameter Operasional</span>
-              <span className="eyebrow">SIM</span>
-            </div>
-            <dl className="card divide-y divide-border">
-              {SPECS.map((s) => (
-                <div key={s.k} className="flex items-center gap-3 px-4 py-3.5">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent-weak text-accent">
-                    <Icon name={s.icon} className="h-4 w-4" />
-                  </span>
-                  <dt className="text-[13px] text-ink-soft">{s.k}</dt>
-                  <dd className="ml-auto font-mono text-[13px] font-semibold text-ink">{s.v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+        <div className="mt-10 flex flex-wrap items-center gap-4">
+          <Link
+            href="/demo"
+            className="inline-flex min-h-[52px] items-center gap-2 rounded-sm bg-signal px-6 text-base font-bold text-bg hover:brightness-110"
+          >
+            <Icon name="play-bold-duotone" className="h-5 w-5" />
+            Mulai demo terpandu
+          </Link>
+          <p className="text-sm text-ink-mute">
+            5 langkah, sekitar 2 menit. Setiap tombol menjalankan serangan
+            sungguhan ke sistem.
+          </p>
         </div>
 
-        {/* Dua pintu masuk — asimetris (RHYTHM) */}
-        <div className="mt-16 grid gap-5 lg:grid-cols-5">
+        <div className="mt-16 grid gap-px overflow-hidden rounded-md border border-line bg-line sm:grid-cols-5">
+          {STEPS.map((s, i) => (
+            <div key={s.id} className="bg-panel p-5">
+              <p className="font-data text-sm text-signal">0{i + 1}</p>
+              <p className="mt-2 text-base font-bold leading-snug text-ink">
+                {s.title}
+              </p>
+              <p className="mt-2 text-xs text-ink-mute">{s.technical}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <span className="text-ink-mute">Mode bebas:</span>
           <Link
             href="/command-center"
-            className="card card-accent card-raised group relative p-7 transition-shadow hover:shadow-lg lg:col-span-3"
+            className="font-semibold text-ink underline-offset-4 hover:underline"
           >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-ink text-white">
-                  <Icon name="shield-checkered" className="h-6 w-6" />
-                </span>
-                <div>
-                  <div className="eyebrow text-accent-deep">Layar Komando</div>
-                  <h2 className="text-lg font-semibold text-ink">C4ISR Command Center</h2>
-                </div>
-              </div>
-              <span className="rounded-full border border-border bg-surface-2 px-2.5 py-1 font-mono text-[10px] text-ink-mute">
-                SOC PUSSIBERAD
-              </span>
-            </div>
-            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-ink-soft">
-              Pantau real-time: attack graph pembelokan, peta taktis 15 Kodam, live terminal
-              spy, matriks MITRE ATT&amp;CK, dan forensic ledger SHA-256.
-            </p>
-            <span className="mt-6 inline-flex items-center gap-2 font-semibold text-accent">
-              Masuk pusat komando
-              <Icon name="arrow-right" className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </span>
+            Ruang komando →
           </Link>
-
           <Link
             href="/target-portal"
-            className="card group relative p-7 transition-shadow hover:shadow-raised lg:col-span-2"
+            className="font-semibold text-ink underline-offset-4 hover:underline"
           >
-            <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-warn-weak text-warn">
-                <Icon name="crosshair" className="h-6 w-6" />
-              </span>
-              <div>
-                <div className="eyebrow text-warn">Layar Penyerang</div>
-                <h2 className="text-lg font-semibold text-ink">Target Portal</h2>
-              </div>
-            </div>
-            <p className="mt-5 text-[15px] leading-relaxed text-ink-soft">
-              Portal logistik &amp; kendali SCADA yang dilihat penyerang. Simulasikan SQLi,
-              sabotase pendingin radar, dan eksplorasi Web-SSH.
-            </p>
-            <span className="mt-6 inline-flex items-center gap-2 font-semibold text-ink">
-              Buka permukaan serang
-              <Icon name="arrow-right" className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </span>
+            Portal penyerang →
           </Link>
         </div>
+      </section>
 
-        {/* Pilar doktrin */}
-        <div className="mt-14">
-          <div className="mb-5 flex items-center gap-3">
-            <span className="eyebrow">Doktrin Inti</span>
-            <div className="hairline flex-1" />
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {PILLARS.map((p, i) => (
-              <div key={p.title} className="card p-6">
-                <div className="flex items-center justify-between">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-accent-weak text-accent">
-                    <Icon name={p.icon} className="h-5 w-5" />
-                  </span>
-                  <span className="font-mono text-sm font-semibold text-ink-faint">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                </div>
-                <h3 className="mt-5 text-[15px] font-semibold text-ink">{p.title}</h3>
-                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">{p.body}</p>
-              </div>
-            ))}
-          </div>
+      <footer className="border-t border-line">
+        <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-xs leading-relaxed text-ink-mute">
+          <p>
+            Catatan: portal &quot;asli&quot;, sabotase radar, dan broadcast 15
+            Kodam adalah simulasi terkontrol untuk demonstrasi. Tidak ada
+            perintah sistem nyata yang dijalankan. Lokasi penyerang dari IP
+            hanya akurat sampai tingkat kota. Terminal penyerang dijawab oleh
+            virtual file system deterministik.
+          </p>
+          <p>Ikon: Solar Icons (CC BY 4.0).</p>
         </div>
-
-        <p className="mt-10 max-w-3xl text-[12.5px] leading-relaxed text-ink-mute">
-          Catatan: seluruh portal &quot;asli&quot;, sabotase radar, dan broadcast 15 Kodam adalah
-          simulasi terkontrol untuk demonstrasi. Tidak ada perintah sistem nyata yang
-          dieksekusi. Geolokasi penyerang berakurasi tingkat kota (dari IP), bukan GPS presisi.
-        </p>
-      </div>
+      </footer>
     </main>
   );
 }
