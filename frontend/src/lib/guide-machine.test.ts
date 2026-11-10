@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   CLOSING_INDEX,
+  canGoBack,
   initialGuideState,
   reduceGuide,
   type GuideAction,
@@ -97,4 +98,32 @@ test("resetting blocks RUN until RESTART", () => {
   expect(resetting.phase).toBe("resetting");
   expect(reduceGuide(resetting, { type: "RUN" })).toBe(resetting);
   expect(reduceGuide(resetting, { type: "RESTART" })).toEqual(initialGuideState);
+});
+
+test("BACK returns to the previous step as done, without re-running it", () => {
+  expect(reduceGuide({ index: 2, phase: "ready", error: null }, { type: "BACK" })).toEqual({
+    index: 1,
+    phase: "done",
+    error: null,
+  });
+  expect(reduceGuide({ index: CLOSING_INDEX, phase: "done", error: null }, { type: "BACK" })).toEqual({
+    index: 4,
+    phase: "done",
+    error: null,
+  });
+});
+
+test("BACK is ignored on step 1 and while an action is in flight", () => {
+  const first: GuideState = { index: 0, phase: "done", error: null };
+  expect(reduceGuide(first, { type: "BACK" })).toBe(first);
+  for (const phase of ["running", "awaiting", "resetting"] as const) {
+    const s: GuideState = { index: 3, phase, error: null };
+    expect(reduceGuide(s, { type: "BACK" })).toBe(s);
+  }
+});
+
+test("canGoBack mirrors BACK", () => {
+  expect(canGoBack({ index: 0, phase: "ready", error: null })).toBe(false);
+  expect(canGoBack({ index: 2, phase: "failed", error: "x" })).toBe(true);
+  expect(canGoBack({ index: 2, phase: "awaiting", error: null })).toBe(false);
 });

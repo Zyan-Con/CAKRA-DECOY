@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { Icon } from "@/components/ui/Icon";
-import { STEPS } from "@/lib/attack-steps";
+import { LandingHero, LandingSteps } from "@/components/landing/LandingMotion";
 
 export default function Home() {
   return (
@@ -17,40 +16,8 @@ export default function Home() {
       </header>
 
       <section className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:py-20">
-        <p className="text-sm font-semibold text-signal">
-          CAKRA-DECOY 2.0 · Active Deception Gateway
-        </p>
-        <h1 className="mt-4 max-w-4xl text-4xl font-extrabold leading-[1.05] tracking-tight text-ink sm:text-6xl">
-          Penyerang mengira dia menang, padahal dia sedang dijebak dan ditonton.
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-soft">
-          CAKRA-DECOY tidak memblokir penyerang di depan pintu. Ia membelokkan
-          penyerang ke portal tiruan, menyadap setiap langkahnya, membongkar
-          identitasnya, lalu menyebarkan vaksin ke seluruh Kodam.
-        </p>
-
-        <div className="mt-10 flex flex-wrap items-center gap-4">
-          <Link
-            href="/demo"
-            className="inline-flex min-h-[52px] items-center gap-2 rounded-sm bg-signal px-6 text-base font-bold text-bg hover:brightness-110"
-          >
-            <Icon name="play-bold-duotone" className="h-5 w-5" />
-            Mulai demo terpandu
-          </Link>
-          <p className="text-sm text-ink-mute">
-            5 langkah, sekitar 2 menit. Setiap tombol menjalankan serangan
-            sungguhan ke sistem.
-          </p>
-        </div>
-
-        <ol className="mt-16 max-w-3xl divide-y divide-line border-y border-line">
-          {STEPS.map((s) => (
-            <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3">
-              <span className="text-base font-semibold text-ink">{s.title}</span>
-              <span className="text-sm text-ink-mute">{s.technical}</span>
-            </li>
-          ))}
-        </ol>
+        <LandingHero />
+        <LandingSteps />
 
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span className="text-ink-mute">Mode bebas:</span>

@@ -19,6 +19,7 @@ import {
 import {
   AWAIT_TIMEOUT_MS,
   CLOSING_INDEX,
+  canGoBack,
   initialGuideState,
   reduceGuide,
   type GuideState,
@@ -34,6 +35,9 @@ export interface Guide {
   run(): Promise<void>;
   wrap<T>(fn: () => Promise<T>): Promise<T>;
   next(): void;
+  /** Kembali ke langkah sebelumnya (hasilnya ditampilkan, tidak dijalankan ulang). */
+  back(): void;
+  canBack: boolean;
   restart(): Promise<void>;
   locked: Partial<Record<PortalControl, string>>;
 }
@@ -89,6 +93,7 @@ export function useGuide(
   }, []);
 
   const next = useCallback(() => dispatch({ type: "NEXT" }), []);
+  const back = useCallback(() => dispatch({ type: "BACK" }), []);
 
   useEffect(() => {
     void restart();
@@ -119,5 +124,5 @@ export function useGuide(
 
   const locked = useMemo(() => lockedControls(step), [step]);
 
-  return { state, step, warning, run, wrap, next, restart, locked };
+  return { state, step, warning, run, wrap, next, back, canBack: canGoBack(state), restart, locked };
 }

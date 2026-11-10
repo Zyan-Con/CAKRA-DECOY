@@ -25,6 +25,7 @@ export type GuideAction =
   | { type: "SATISFIED" }
   | { type: "TIMEOUT" }
   | { type: "NEXT" }
+  | { type: "BACK" }
   | { type: "RESET_START" }
   | { type: "RESTART" };
 
@@ -37,6 +38,11 @@ export const initialGuideState: GuideState = {
   phase: "ready",
   error: null,
 };
+
+/** Mundur hanya bila tidak ada aksi yang sedang berjalan, dan bukan di langkah pertama. */
+export function canGoBack(s: GuideState): boolean {
+  return s.index > 0 && s.phase !== "running" && s.phase !== "awaiting" && s.phase !== "resetting";
+}
 
 export function reduceGuide(s: GuideState, a: GuideAction): GuideState {
   switch (a.type) {
@@ -73,6 +79,9 @@ export function reduceGuide(s: GuideState, a: GuideAction): GuideState {
         error: null,
       };
     }
+    case "BACK":
+      // Langkah sebelumnya sudah dijalankan: tampilkan hasilnya, jangan ulangi serangannya.
+      return canGoBack(s) ? { index: s.index - 1, phase: "done", error: null } : s;
     case "RESET_START":
       return { ...s, phase: "resetting", error: null };
     case "RESTART":

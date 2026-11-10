@@ -23,7 +23,7 @@ const gov = Inter({
 export const metadata: Metadata = {
   title: "CAKRA-DECOY 2.0 · Active Deception Gateway",
   description:
-    "Penyerang mengira dia menang, padahal dia sedang dijebak dan ditonton. Sistem deception aktif untuk infrastruktur IT/OT TNI AD · Kartika Cyber Hackathon 2026.",
+    "Penyerang mengira menang. Padahal dijebak. Sistem deception aktif untuk infrastruktur IT/OT TNI AD · Kartika Cyber Hackathon 2026.",
 };
 
 export const viewport: Viewport = {

@@ -42,6 +42,17 @@ function StepList({ guide }: { guide: Guide }) {
   );
 }
 
+/** Kembali ke langkah sebelumnya: hasilnya ditampilkan lagi, serangannya tidak diulang. */
+function BackButton({ guide }: { guide: Guide }) {
+  if (guide.state.index === 0) return null;
+  return (
+    <Button variant="ghost" className="w-full" disabled={!guide.canBack} onClick={guide.back}>
+      <Icon name="arrow-left-bold-duotone" className="h-4 w-4" />
+      Kembali ke langkah {guide.state.index}
+    </Button>
+  );
+}
+
 export interface GuideSidebarProps {
   guide: Guide;
   /** WS ke ruang komando tersambung. Tanpa ini bukti langkah tidak bisa diterima, jadi aksi ditahan. */
@@ -77,17 +88,19 @@ export function GuideSidebar({ guide, live }: GuideSidebarProps) {
               Demo selesai
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-              Penyerang mengira dia menang, padahal sejak langkah pertama dia
-              dijebak dan ditonton. Bukti setiap langkahnya tersimpan di ledger.
+              Penyerang mengira menang, padahal dijebak sejak langkah pertama. Bukti setiap langkahnya tersimpan di ledger.
             </p>
-            <Button
-              className="mt-5 w-full"
-              disabled={state.phase === "resetting"}
-              onClick={() => void guide.restart()}
-            >
-              <Icon name="restart-bold-duotone" className="h-4 w-4" /> Ulangi
-              demo
-            </Button>
+            <div className="mt-5 flex flex-col gap-2">
+              <Button
+                className="w-full"
+                disabled={state.phase === "resetting"}
+                onClick={() => void guide.restart()}
+              >
+                <Icon name="restart-bold-duotone" className="h-4 w-4" /> Ulangi
+                demo
+              </Button>
+              <BackButton guide={guide} />
+            </div>
           </>
         ) : (
           <>
@@ -119,14 +132,15 @@ export function GuideSidebar({ guide, live }: GuideSidebarProps) {
                           ? "Menunggu koneksi ke ruang komando. Aksi dibuka setelah status di kanan atas menjadi Terhubung."
                           : step.before}
             </p>
+            <div className="mt-5 flex flex-col gap-2">
             {state.phase === "done" ? (
-              <Button className="mt-5 w-full" onClick={guide.next}>
+              <Button className="w-full" onClick={guide.next}>
                 Lanjut{" "}
                 <Icon name="arrow-right-bold-duotone" className="h-4 w-4" />
               </Button>
             ) : (
               <Button
-                className="mt-5 w-full"
+                className="w-full"
                 variant={state.phase === "failed" ? "danger" : "primary"}
                 disabled={blocked}
                 onClick={() => void guide.run()}
@@ -149,6 +163,8 @@ export function GuideSidebar({ guide, live }: GuideSidebarProps) {
                 {state.phase === "failed" ? "Coba lagi" : step.actionLabel}
               </Button>
             )}
+            <BackButton guide={guide} />
+            </div>
           </>
         )}
         {guide.warning && (
