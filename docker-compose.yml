@@ -18,6 +18,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    environment:
+      - DEMO_EMITTER=0 # emitter lama mati; pakai toggle "Penyerang otomatis" di Command Center
     env_file:
       - path: ./backend/.env
         required: false
@@ -44,7 +46,7 @@ services:
       - frontend
       - backend
     ports:
-      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:8181:8080" # cloudflared tunnel + health check deploy menunjuk ke 8181
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
