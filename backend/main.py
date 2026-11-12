@@ -260,7 +260,9 @@ async def sys_console(req: ConsoleReq, request: Request) -> dict:
             req.session_token, base_url
         ),
     }
-    result = ai_shell.run(req.command, cwd, overrides=overrides)
+    # Tier-2 bisa memanggil LLM (blocking I/O) -> jalankan di threadpool agar event
+    # loop tetap responsif. Tier-1 VFS tetap <2ms, overhead thread dapat diabaikan.
+    result = await asyncio.to_thread(ai_shell.run, req.command, cwd, overrides=overrides)
     decoy.store.update_cwd(req.session_token, result.cwd)
 
     blk = forensic_chain.forensic_ledger.add_block(
