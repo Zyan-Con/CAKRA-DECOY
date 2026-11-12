@@ -164,7 +164,7 @@ _LLM_SYSTEM = (
 
 def _llm_provider() -> str:
     p = os.getenv("AI_PROVIDER", "").strip().lower()
-    return p if p in ("groq", "gemini", "ollama") else ""
+    return p if p in ("groq", "gemini", "ollama", "openai", "9router") else ""
 
 
 def _llm_user_prompt(line: str, cwd: str) -> str:
@@ -270,6 +270,37 @@ def _llm_complete(line: str, cwd: str) -> str | None:
             )
             resp.raise_for_status()
             return _clean_llm_output(resp.json()["message"]["content"])
+
+        if provider in ("openai", "9router"):
+            # Gateway OpenAI-compatible mana pun (9Router, OpenRouter, vLLM, LM Studio, dll).
+            # 9Router default lokal: http://localhost:20128/v1 ; model mis. "cc/claude-opus-4-7".
+            default_base = "http://localhost:20128/v1" if provider == "9router" else ""
+            base = os.getenv("LLM_BASE_URL", default_base).rstrip("/")
+            model = os.getenv("LLM_MODEL", "")
+            if not base or not model:
+                return None
+            headers = {"Content-Type": "application/json"}
+            key = os.getenv("LLM_API_KEY", "")
+            if key and not key.startswith("your_"):
+                headers["Authorization"] = f"Bearer {key}"
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers=headers,
+                json={
+                    "model": model,
+                    "temperature": 0.2,
+                    "max_tokens": 700,
+                    "messages": [
+                        {"role": "system", "content": _LLM_SYSTEM},
+                        {"role": "user", "content": _llm_user_prompt(line, cwd)},
+                    ],
+                },
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            return _clean_llm_output(
+                resp.json()["choices"][0]["message"]["content"]
+            )
     except Exception:
         # Air-gap / timeout / key salah / JSON tak terduga: diam-diam pakai fallback.
         return None
