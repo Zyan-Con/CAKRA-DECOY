@@ -154,6 +154,67 @@ _LLM_FALLBACK: dict[str, str] = {
     ),
     "uptime": " 08:42:19 up 14 days,  2:41,  1 user,  load average: 0.12, 0.08, 0.05",
     "sudo": "sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper",
+    "w": (
+        " 08:42:19 up 14 days,  2:41,  1 user,  load average: 0.12, 0.08, 0.05\n"
+        "USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT\n"
+        "ubuntu   pts/0    10.24.18.15      08:14    0.00s  0.04s  0.00s w"
+    ),
+    "who": "ubuntu   pts/0        2026-11-13 08:14 (10.24.18.15)",
+    "last": (
+        "ubuntu   pts/0        10.24.18.15      Fri Nov 13 08:14   still logged in\n"
+        "ubuntu   pts/0        10.24.18.15      Mon Nov  9 06:10 - 06:31  (00:21)\n"
+        "reboot   system boot  5.15.0-91-generi Fri Oct 30 06:00   still running\n"
+        "\n"
+        "wtmp begins Fri Oct 30 06:00:41 2026"
+    ),
+    "systemctl": (
+        "● satcom-relay-daemon.service - SATCOM Relay Daemon\n"
+        "     Loaded: loaded (/etc/systemd/system/satcom-relay-daemon.service; enabled; vendor preset: enabled)\n"
+        "     Active: active (running) since Fri 2026-10-30 06:01:12 WIB; 2 weeks 0 days ago\n"
+        "   Main PID: 842 (satcom-relay-da)\n"
+        "      Tasks: 6 (limit: 9387)\n"
+        "     Memory: 62.6M\n"
+        "        CPU: 19.204s\n"
+        "     CGroup: /system.slice/satcom-relay-daemon.service\n"
+        "             └─842 /usr/sbin/satcom-relay-daemon --config /opt/satcom/kredensial_komando.env"
+    ),
+    "service": (
+        " [ + ]  cron\n"
+        " [ + ]  plc-modbus-bridge\n"
+        " [ + ]  rsyslog\n"
+        " [ + ]  satcom-relay-daemon\n"
+        " [ + ]  ssh\n"
+        " [ - ]  ufw"
+    ),
+    "lsblk": (
+        "NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS\n"
+        "loop0     7:0    0 63.9M  1 loop /snap/core20/2105\n"
+        "sda       8:0    0   80G  0 disk\n"
+        "├─sda1    8:1    0 79.9G  0 part /\n"
+        "├─sda14   8:14   0    4M  0 part\n"
+        "└─sda15   8:15   0  106M  0 part /boot/efi"
+    ),
+    "mount": (
+        "/dev/sda1 on / type ext4 (rw,relatime,discard,errors=remount-ro)\n"
+        "/dev/sda15 on /boot/efi type vfat (rw,relatime,fmask=0077,dmask=0077)\n"
+        "tmpfs on /run type tmpfs (rw,nosuid,nodev,noexec,relatime,size=4077952k,mode=755)\n"
+        "proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)\n"
+        "sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)"
+    ),
+    "dmesg": "dmesg: read kernel buffer failed: Operation not permitted",
+    "du": "12K\t/opt/satcom\n8.0K\t/opt/scada",
+    "which": "/usr/bin/python3",
+    "lscpu": (
+        "Architecture:            x86_64\n"
+        "  CPU op-mode(s):        32-bit, 64-bit\n"
+        "CPU(s):                  4\n"
+        "Vendor ID:               GenuineIntel\n"
+        "  Model name:            Intel(R) Xeon(R) Silver 4210R CPU @ 2.40GHz\n"
+        "    Thread(s) per core:  1\n"
+        "    Core(s) per socket:  4\n"
+        "Virtualization features:\n"
+        "  Hypervisor vendor:     KVM"
+    ),
 }
 
 
